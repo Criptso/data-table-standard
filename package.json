@@ -1,0 +1,9 @@
+{
+  "name": "data-table-standard",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Verifier for the data-table standard: drives a table in headless Chrome and reports which of the 14 rules it meets.",
+  "scripts": { "verify": "node scripts/verify-table.mjs" },
+  "dependencies": { "puppeteer-core": "^23.0.0" }
+}
