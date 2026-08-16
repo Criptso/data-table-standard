@@ -15,6 +15,9 @@ description: >-
 
 # Data tables
 
+Published at <https://github.com/Criptso/data-table-standard>. Every edit to this directory is
+committed and pushed automatically, so treat it as public the moment you save.
+
 People who live in Sheets and Excel judge every other list against them. One that cannot be
 sorted, filtered or reshaped forces them to export the data to work with it, so a generated app
 fails the same way every time. Each rule here was missing at least once and cost a round trip.
