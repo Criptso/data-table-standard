@@ -790,10 +790,13 @@ else {
              `${dateCells.reduce((a, c) => a + c.blanks, 0)} blank of ${await rowCount()} rows`)
       : fail(14, "a date column prints a dash where the date is missing",
              dashed.map(c => `${c.dashes.length}× "${c.dashes[0]}"`).join(", "));
-    // rule 11: does that column's menu offer a range?
+    // rule 11: does that column's menu offer a range? The handle is found through the
+    // column it SITS IN — a column with no handle at all (an actions column) puts the
+    // two lists out of step, and indexing one by the other opens the wrong menu.
     if (await has(SEL.menuHandle)) {
       const handles = await page.$$(SEL.menuHandle);
-      const h = handles[dateCells[0].i];
+      const mapped = (await handleCols()).find(c => c.col === dateCells[0].i);
+      const h = mapped ? handles[mapped.k] : null;
       if (h) {
         await h.click();
         await sleep(300);
