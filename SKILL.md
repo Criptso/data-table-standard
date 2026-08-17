@@ -57,13 +57,13 @@ start — retrofitting persistence is the expensive half.
    the user cannot tell it from having no data at all.
 5. **A "Columns" button that creates columns**, not only hides them. A new user column becomes
    a real field in the database (a migration or a custom-fields table), not a UI-only ghost.
-   Show/hide of existing columns lives here too — and **hiding a column drops that column's
-   sort and its filter**, because the header that was gone was the only thing on screen saying
-   either existed: a list ordered by an invisible column, or trimmed to 14 of 35 rows with
-   nothing explaining why, is the same bug twice. A column the **user** made can also be
-   **removed**, not merely hidden: he made it, so he can unmake it, and hide-only leaves it in
-   the stored document forever with no control anywhere that deletes it. A base column has data
-   behind it and only hides.
+   Show/hide of existing columns lives here too — and **hiding a column drops that column's sort
+   and its filter**, because that header was the only thing on screen saying either one existed:
+   a list ordered by an invisible column, or trimmed to 14 of 35 rows with nothing explaining
+   why, is the same bug twice. A column the **user** made can also be **removed**, not merely
+   hidden: he made it, so he can unmake it, and hide-only leaves it in the stored document
+   forever with no control anywhere that deletes it. A base column has data behind it and only
+   hides.
 6. **Drag & drop reordering**, order persisted per user.
 7. **The first column freezes** on horizontal scroll. "First" means the current position, not a
    named column: if the user drags another column into position 1, that one freezes. With the
@@ -144,9 +144,9 @@ Read these before writing the code; every one shipped at least once.
   on the screen where the ticks were made and diverge everywhere else. Store the accepted values
   and every value that had not been seen at that moment is stranded outside the set forever:
   filter Region, untick one City while Region is narrowing the list, then clear Region — every
-  other region's cities are gone, with nothing on screen to tick them back. Rows that arrive later are
-  gone the same way, which is worse, because nobody was there to see them go. A value passes
-  unless it is named in the excluded list; an empty list is no filter at all.
+  other region's cities are gone, with nothing on screen to tick them back. Rows that arrive
+  later go the same way, which is worse, because nobody was there to watch it happen. A value
+  passes unless it is named in the excluded list; an empty list is no filter at all.
 - **Sorting must not fire from the menu handle or the resize grip.** They sit inside the header
   cell, and if they share a listener node, `stopPropagation` will not save you — guard on the
   target.
