@@ -32,7 +32,11 @@ config.json (every key optional; these are the defaults):
     "rowGrip":    ".rowrz, [data-row-resize]",
     "search":     "input[type=search], input[placeholder*='search' i], input[placeholder*='contains' i]",
     "clear":      ".xclr, [data-clears], button[aria-label*='clear' i]",
-    "addColumn":  "[data-add-column], #addColBtn"
+    "addColumn":  "[data-add-column], #addColBtn",
+    "newColumn":  "[data-newcol], input[placeholder*='new column' i]",
+    "colRemove":  "[data-col-del], [data-column-remove]",
+    "emptyRow":   "[data-empty], .tbl-empty, [data-empty-state]",
+    "columnsBtn": null                  // auto: a button outside the table saying "columns"
   },
   "chrome": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
   "viewport": { "width": 1200, "height": 850 }
@@ -51,6 +55,10 @@ const SEL = {
   search: "input[type=search], input[placeholder*='search' i], input[placeholder*='contains' i]",
   clear: ".xclr, [data-clears], button[aria-label*='clear' i]",
   addColumn: "[data-add-column], #addColBtn",
+  newColumn: "[data-newcol], input[placeholder*='new column' i]",
+  colRemove: "[data-col-del], [data-column-remove]",
+  emptyRow: "[data-empty], .tbl-empty, [data-empty-state]",
+  columnsBtn: null,
   ...(cfg.sel || {}),
 };
 const CHROME = cfg.chrome || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
