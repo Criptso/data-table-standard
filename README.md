@@ -12,12 +12,14 @@ missing at least once, and every trap in it was shipped before it was written do
 
 A high-contrast sticky header — measurably brighter than the rows it labels — with centred
 uppercase titles and a thin rule between columns. Click a title to sort. A circle beside each
-title opens a menu that filters by value, searches the column, and derives a new column from
-this one and another; date columns swap the value list for periods and an exact range. The first
-column freezes as you scroll sideways, and it follows the user's drag-and-drop order. Short
-values keep their width, long text wraps and clamps at three lines with the rest on hover, and
-both rows and columns can be dragged to size. Every search box clears in one click. Dates always
-read `16 Aug 2026`.
+title opens a menu that filters by value, searches the column by the word it *prints*, and
+derives a new column from this one and another; date columns swap the value list for periods and
+an exact range. The first column freezes as you scroll sideways, in the same box the header
+sticks to, and it follows the user's drag-and-drop order. Short values keep their width, long
+text wraps and clamps at three lines with the rest on hover, and both rows and columns can be
+dragged to size. Figures sit right-aligned in tabular monospace. Hiding a column takes its sort
+and its filter with it, and a column the user made can be removed again. Every search box clears
+in one click, and a table its filters have emptied says so. Dates always read `16 Aug 2026`.
 
 ## Install
 
