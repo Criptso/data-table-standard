@@ -384,6 +384,33 @@ else {
       const reloaded = await page.$$eval(SEL.head, ts => ts.map(t => t.textContent.trim()));
       reloaded[0] === after[0] ? pass(6, "the order survives a reload")
                                : fail(6, "the order is forgotten on reload", `${after[0]} → ${reloaded[0]}`);
+      /* The SAME drag, reloaded straight away: a layout write held behind a debounce
+         dies with the document, and the column dragged one moment before a reload
+         was the one that came back forgotten. Nothing here waits — the reload lands
+         inside the debounce window on purpose, which is where the write has to be
+         flushed on `pagehide`/`visibilitychange` with a keepalive send. (Found
+         because this verifier reloads inside that window itself.) */
+      const was = await page.$$eval(SEL.head, ts => ts.map(t => t.textContent.trim()));
+      await page.evaluate(() => {
+        const ths = [...document.querySelectorAll(window.__S.head)];
+        const dt = new DataTransfer();
+        ths[2]?.dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: dt }));
+        ths[0]?.dispatchEvent(new DragEvent("dragover", { bubbles: true, dataTransfer: dt }));
+        ths[0]?.dispatchEvent(new DragEvent("drop", { bubbles: true, dataTransfer: dt }));
+        ths[2]?.dispatchEvent(new DragEvent("dragend", { bubbles: true, dataTransfer: dt }));
+      });
+      await sleep(60);                                  // a render, not a debounce
+      const moved = await page.$$eval(SEL.head, ts => ts.map(t => t.textContent.trim()));
+      if (moved[0] === was[0]) skip(6, "a write inside the debounce window", "the second drag moved nothing");
+      else {
+        await page.reload({ waitUntil: "networkidle2" });
+        await page.waitForSelector(SEL.rows).catch(() => {});
+        const back = await page.$$eval(SEL.head, ts => ts.map(t => t.textContent.trim()));
+        back[0] === moved[0]
+          ? pass(6, "a layout write survives a reload inside the debounce window", `${moved[0]} first, 60ms later`)
+          : fail(6, "a debounced layout write died with the document — flush it on "
+                  + "pagehide/visibilitychange with keepalive", `${moved[0]} → ${back[0]}`);
+      }
     }
   }
 }
