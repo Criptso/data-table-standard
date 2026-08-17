@@ -143,8 +143,8 @@ Read these before writing the code; every one shipped at least once.
 - **Persist a value filter as the EXCLUDED set, never as the accepted one.** They look identical
   on the screen where the ticks were made and diverge everywhere else. Store the accepted values
   and every value that had not been seen at that moment is stranded outside the set forever:
-  filter Desk, untick one Symbol while Desk is narrowing the list, then clear Desk — the other
-  desks' symbols are gone, with nothing on screen to tick them back. Rows that arrive later are
+  filter Region, untick one City while Region is narrowing the list, then clear Region — every
+  other region's cities are gone, with nothing on screen to tick them back. Rows that arrive later are
   gone the same way, which is worse, because nobody was there to see them go. A value passes
   unless it is named in the excluded list; an empty list is no filter at all.
 - **Sorting must not fire from the menu handle or the resize grip.** They sit inside the header
