@@ -168,7 +168,7 @@ Read these before writing the code; every one shipped at least once.
 
 `reference/mechanics.md` carries the fiddly parts as copyable snippets — freeze panes, the
 clamp, the column menu, the date handling — taken from a vanilla-JS table over a plain
-`<table>` that implements all 14 rules and has hit every trap above.
+`<table>` that implements all 15 rules and has hit every trap above.
 
 There is deliberately no shared component yet: the rules are stack-agnostic, the code is not,
 and one consumer does not justify a library. Extract one when a second table in the same stack
@@ -182,13 +182,14 @@ belongs in this standard** before you finish the turn. They decide; you propose.
 
 Ask it concretely. Not "should I save this?" but the rule as it would be written:
 
-> Add to the standard as rule 15: *"numeric columns align right"*? Or does it stay in this
-> project only?
+> Add to the standard as rule 16: *"a currency column names its unit once, in the title, never
+> in every row"*? Or does it stay in this project only?
 
 Say which way you lean and why — a change driven by one project's data is usually local; a
-change driven by how someone reads a table is usually a rule.
+change driven by how someone reads a table is usually a rule. (Rule 15 arrived exactly this way,
+as "numeric columns align right", from one dashboard where they did not.)
 
-If he says yes, the change lands in four places or it will drift apart:
+If he says yes, the change lands in three places or it will drift apart:
 
 1. this file — the rule, with the reason it exists
 2. `scripts/verify-table.mjs` — a check for it, or the rule is a wish rather than a gate
