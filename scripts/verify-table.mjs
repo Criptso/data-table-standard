@@ -842,7 +842,7 @@ else {
        still filters leaves a list ordered — or trimmed to 14 of 35 rows — by
        something that is not on screen anywhere. */
     const cols = await handleCols();
-    const victim = cols.find(c => c.label && c.n !== 0) ?? cols[0];
+    const victim = cols.find(c => c.label && c.col >= 0);
     const total0 = await rowCount();
     if (!victim) skip(5, "hiding a column drops its sort and its filter", "no labelled column found");
     else {
