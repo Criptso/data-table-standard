@@ -47,10 +47,23 @@ start — retrofitting persistence is the expensive half.
 4. **A per-column menu**, opened from a mark beside the title, Sheets style: tick/untick the
    distinct values as a filter (with select-all and counts), search within the column, sort,
    and derive a new column together with another column. The menu is where a column becomes
-   manipulable — not a second home for sorting.
+   manipulable — not a second home for sorting. Two things the search inside it has to do, or
+   it is a second control rather than the same one: **it matches the word the cell DISPLAYS**,
+   not only the value the row stores — a status printed "In market" over a row that says
+   `in_market` must be findable by typing what is on screen — and **it narrows the tick list as
+   you type**, so the values and the search read as one thing. A list that does not move while
+   the rows do says the field is dead. And when the filters empty the body, **the table states
+   "No rows match the filters"** instead of showing nothing: an empty body reads as broken, and
+   the operator cannot tell it from having no data.
 5. **A "Columns" button that creates columns**, not only hides them. A new user column becomes
    a real field in the database (a migration or a custom-fields table), not a UI-only ghost.
-   Show/hide of existing columns lives here too.
+   Show/hide of existing columns lives here too — and **hiding a column drops that column's
+   sort and its filter**, because the header that was gone was the only thing on screen saying
+   either existed: a list ordered by an invisible column, or trimmed to 14 of 35 rows with
+   nothing explaining why, is the same bug twice. A column the **user** made can also be
+   **removed**, not merely hidden: he made it, so he can unmake it, and hide-only leaves it in
+   the stored document forever with no control anywhere that deletes it. A base column has data
+   behind it and only hides.
 6. **Drag & drop reordering**, order persisted per user.
 7. **The first column freezes** on horizontal scroll. "First" means the current position, not a
    named column: if the user drags another column into position 1, that one freezes. With the
