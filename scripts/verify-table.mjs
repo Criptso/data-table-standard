@@ -88,8 +88,72 @@ await page.goto(URL, { waitUntil: "networkidle2" });
 await page.waitForSelector(SEL.rows, { timeout: 20000 }).catch(() => {});
 
 const has = async sel => (await page.$(sel)) !== null;
-const rowCount = () => page.$$eval(SEL.rows, r => r.length);
-const rowOrder = () => page.$$eval(SEL.rows, rs => rs.map(r => r.textContent.trim().slice(0, 40)));
+
+/** Every selector here may be a comma list, so scoping one inside another is a
+ *  cross product — `"a, b" + "x, y"` is four selectors, not one. */
+const scoped = (outer, inner) => outer.split(",")
+  .flatMap(o => inner.split(",").map(i => `${o.trim()} ${i.trim()}`)).join(", ");
+
+/* The "no rows match the filters" line is a MESSAGE, not a row. Counted as one,
+   "clearing restored the rows" reads true at zero rows — which is precisely the
+   state the message announces. */
+const DATA_ROWS = `[...document.querySelectorAll(window.__S.rows)]
+  .filter(r => !r.matches(window.__S.emptyRow) && !r.querySelector(window.__S.emptyRow))`;
+const rowCount = () => page.evaluate(`${DATA_ROWS}.length`);
+const rowOrder = () => page.evaluate(`${DATA_ROWS}.map(r => r.textContent.trim().slice(0, 40))`);
+/** the text of one column, by its position in the header — read live, because a
+ *  drag-reorder has already moved the columns by the time this runs */
+const colText = c => page.evaluate(`${DATA_ROWS}.map(r => (r.children[${c}]?.textContent || "").trim())`);
+
+/* ── the per-column menu, driven ───────────────────────────────────────────────
+   Opening, closing and ticking are needed by four rules, and each of them has one
+   way to go wrong that is worth writing down once. */
+const menuOpen = () => page.evaluate(sel => {
+  const m = document.querySelector(sel);
+  return !!m && !m.hidden && getComputedStyle(m).display !== "none";
+}, SEL.menu);
+/** the handles, each with the header position of the column it belongs to: a
+ *  column with nothing to filter (an actions column) has no handle, so the two
+ *  lists are not the same length and the index of one is not the index of the other */
+const handleCols = () => page.evaluate(sel => {
+  const ths = [...document.querySelectorAll(window.__S.head)];
+  return [...document.querySelectorAll(sel)].map((h, k) => {
+    const th = h.closest("th") ?? h.parentElement;
+    return { k, col: ths.indexOf(th), label: (th?.textContent || "").trim() };
+  });
+}, SEL.menuHandle);
+async function openMenu(k) {
+  const hs = await page.$$(SEL.menuHandle);
+  if (!hs[k]) return false;
+  await hs[k].click().catch(() => {});
+  await sleep(260);
+  return menuOpen();
+}
+async function closeMenu() {
+  if (await menuOpen()) { await page.keyboard.press("Escape"); await sleep(180); }
+}
+/** the value ticks of the open menu, WITHOUT its select-all master — that one is
+ *  a control over the list, not a member of it */
+const ticks = () => page.evaluate(sel => {
+  const m = document.querySelector(sel);
+  if (!m) return [];
+  return [...m.querySelectorAll("input[type=checkbox]")]
+    .map(b => ({ label: (b.closest("label")?.textContent || b.getAttribute("aria-label") || "")
+                          .replace(/\s+/g, " ").trim(),
+                 aria: b.getAttribute("aria-label") || "", on: b.checked }))
+    .filter(t => !/select all|toate/i.test(t.aria));
+}, SEL.menu);
+/** click the nth value tick. A programmatic click still travels the capture phase,
+ *  which is where a menu that re-renders has to stamp its own events. */
+async function clickTick(n) {
+  await page.evaluate((sel, n) => {
+    const m = document.querySelector(sel);
+    const bs = [...m.querySelectorAll("input[type=checkbox]")]
+      .filter(b => !/select all|toate/i.test(b.getAttribute("aria-label") || ""));
+    bs[n]?.click();
+  }, SEL.menu, n);
+  await sleep(300);
+}
 
 /* ── contrast helpers live in the page, measured on what is actually painted ───────── */
 const CONTRAST = `
