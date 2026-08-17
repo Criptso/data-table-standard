@@ -122,6 +122,42 @@ check the target itself:
 if (e.target.closest(".rz") || e.target.closest("[data-cmenu]")) return;
 ```
 
+## The layout write that survives the way out
+
+Order, widths and row heights go behind a debounce, so a drag does not PUT per pixel. Keep the
+queued document in a ref, and flush it on the way out — `keepalive`, or the navigation cancels the
+request the flush just started.
+
+```js
+const pending = useRef(null);                 // the document the timer is holding
+const save = (doc) => {                       // called by every layout change
+  pending.current = doc;
+  clearTimeout(timer.current);
+  timer.current = setTimeout(() => { pending.current = null; put(doc); }, 300);
+};
+
+useEffect(() => {
+  const flush = () => {
+    const queued = pending.current;
+    clearTimeout(timer.current);
+    pending.current = null;                   // idempotent: the second event finds nothing
+    if (queued) void put(queued, { keepalive: true });
+  };
+  // pagehide misses the way a phone actually leaves: backgrounded, the tab is frozen
+  const hidden = () => { if (document.visibilityState === "hidden") flush(); };
+  addEventListener("pagehide", flush);
+  document.addEventListener("visibilitychange", hidden);
+  return () => {
+    removeEventListener("pagehide", flush);
+    document.removeEventListener("visibilitychange", hidden);
+    flush();                                  // and on unmount
+  };
+}, []);
+```
+
+`put` is a plain `fetch(url, { method: "PUT", body, keepalive })` — `keepalive` is the whole point
+of the second argument, and a `fetch` started in `pagehide` without it dies with the document.
+
 ## Derived columns are a view
 
 Store the definition (`{left, op, right}`) next to the column order and widths, and recompute on
