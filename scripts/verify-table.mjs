@@ -225,6 +225,53 @@ const CONTRAST = `
   }
 }
 
+// ── 15. figures right-aligned, monospaced, tabular ─────────────────────────────────
+{
+  const n = await page.evaluate(`(() => {
+    const rows = ${DATA_ROWS};
+    if (rows.length < 2) return null;
+    const ths = [...document.querySelectorAll(window.__S.head)];
+    // a column of dates is not a column of figures, and "—" is a hole rather than
+    // a value: neither may decide whether a column is numeric
+    const hole = s => !s || /^(—|–|-|n\\/a)$/i.test(s);
+    const num = s => {
+      const bare = s.replace(/\\s+[\\p{L}%€$£¥]{1,4}$/u, "")   // a trailing unit: "12.40 EUR"
+                    .replace(/[\\s,\\u00a0]/g, "");
+      return /^[+\\-\\u2212]?\\d+(\\.\\d+)?$/.test(bare);
+    };
+    const out = [];
+    for (let i = 0; i < (rows[0].children.length); i++) {
+      const cells = rows.map(r => r.children[i]).filter(Boolean);
+      const vals = cells.map(c => c.textContent.trim()).filter(s => !hole(s));
+      // a MAGNITUDE, not an identifier: an id is a run of digits too, and nobody
+      // compares two of them by size. A sign or a decimal point is the tell.
+      if (vals.length < 2 || !vals.every(num) || !vals.some(s => /[.\\u2212+-]/.test(s))) continue;
+      const c = cells.find(c => !hole(c.textContent.trim()));
+      const s = getComputedStyle(c);
+      out.push({ label: (ths[i]?.textContent || "#" + i).trim(),
+                 align: s.textAlign, family: s.fontFamily,
+                 tnum: s.fontVariantNumeric + " " + s.fontFeatureSettings });
+    }
+    return out;
+  })()`);
+  if (!n) skip(15, "numeric columns", "fewer than two rows");
+  else if (!n.length) skip(15, "numeric columns", "no column of figures in view");
+  else {
+    const named = n.map(c => c.label).join(", ");
+    const bad = f => n.filter(f).map(c => `${c.label}=${c.align}`).join(", ");
+    const wrongAlign = bad(c => c.align !== "right");
+    wrongAlign ? fail(15, "figures are not right-aligned", wrongAlign)
+               : pass(15, "figures right-aligned", named);
+    const wrongFont = n.filter(c => !/mono|courier|consolas|menlo|monaco/i.test(c.family))
+                       .map(c => c.label).join(", ");
+    wrongFont ? fail(15, "figures are not monospaced — digits will not line up", wrongFont)
+              : pass(15, "figures monospaced", n[0].family.split(",")[0]);
+    const wrongNum = n.filter(c => !/tabular-nums|tnum/.test(c.tnum)).map(c => c.label).join(", ");
+    wrongNum ? fail(15, "no tabular-nums — proportional digits break the column", wrongNum)
+             : pass(15, "tabular-nums on the figures");
+  }
+}
+
 // ── 3. sorting ─────────────────────────────────────────────────────────────────────
 if (await rowCount() < 2) skip(3, "sorting", "fewer than two rows");
 else {
