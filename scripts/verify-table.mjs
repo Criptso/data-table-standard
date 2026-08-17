@@ -554,13 +554,20 @@ else {
 {
   await closeMenu();
   const cols = await handleCols();
-  let found = null;
+  const wordy = t => /\S\s\S/.test((t.aria || t.label).trim());
+  let found = null, fallback = null;
+  /* A column whose printed words are its stored values proves only half of this:
+     prefer one that prints something else ("In market" over `in_market`), because
+     that is the only shape in which a search reading the raw value shows up. */
   for (const h of cols.slice(0, 8)) {
     if (!(await openMenu(h.k))) continue;
     const t = await ticks();
-    if (t.length >= 3 && await has(scoped(SEL.menu, SEL.search))) { found = { h, t }; break; }
+    const usable = t.length >= 3 && await has(scoped(SEL.menu, SEL.search));
+    if (usable && t.some(wordy)) { found = { h, t }; break; }
+    if (usable && !fallback) fallback = { h, t };
     await closeMenu();
   }
+  if (!found && fallback) { await openMenu(fallback.h.k); found = fallback; }
   if (!found)
     skip(4, "the in-column search narrows the value list",
          "no column menu with both a search box and a list long enough to narrow");
@@ -785,11 +792,13 @@ else {
     /* A missing date is EMPTY, never a dash: one "—" and the column stops reading as
        dates at all — to the eye and to the detection above. */
     const dashed = dateCells.filter(c => c.dashes.length);
-    dashed.length === 0
-      ? pass(14, "a missing date renders as empty, not as a dash",
-             `${dateCells.reduce((a, c) => a + c.blanks, 0)} blank of ${await rowCount()} rows`)
-      : fail(14, "a date column prints a dash where the date is missing",
-             dashed.map(c => `${c.dashes.length}× "${c.dashes[0]}"`).join(", "));
+    const holes = dateCells.reduce((a, c) => a + c.blanks, 0);
+    if (dashed.length)
+      fail(14, "a date column prints a dash where the date is missing",
+           dashed.map(c => `${c.dashes.length}× "${c.dashes[0]}"`).join(", "));
+    else if (holes) pass(14, "a missing date renders as empty, not as a dash", `${holes} blank cells`);
+    else skip(14, "a missing date renders as empty, not as a dash",
+              "every row in view has its date — nothing missing to judge");
     // rule 11: does that column's menu offer a range? The handle is found through the
     // column it SITS IN — a column with no handle at all (an actions column) puts the
     // two lists out of step, and indexing one by the other opens the wrong menu.
