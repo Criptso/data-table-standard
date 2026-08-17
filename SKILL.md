@@ -152,6 +152,15 @@ Read these before writing the code; every one shipped at least once.
   target.
 - **The clamp cannot live on the `<td>`.** A cell has to stay `display: table-cell`; put the
   line clamp on an inner box.
+- **A debounced layout write dies with the document.** Column order, widths and row heights are
+  written behind a debounce so a drag does not PUT once per pixel — and a page that unloads inside
+  that window takes the pending write with it. The column dragged one moment before a reload came
+  back forgotten, and the persistence looked broken when only its last 300ms were. Flush whatever
+  is queued on `pagehide` **and** on `visibilitychange` (a backgrounded tab is frozen and may
+  never fire `pagehide`), and send it with `keepalive`, or the navigation cancels the request the
+  flush just started. Make the flush idempotent — whichever event comes first wins and the other
+  finds nothing queued. Found because this verifier reloads inside that window itself, so any
+  check of persistence is a check of the flush whether you meant it or not.
 - **A derived column is a view, not data.** Recompute it from the row; storing the result
   duplicates values the source columns already own.
 
