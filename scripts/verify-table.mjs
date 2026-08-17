@@ -803,47 +803,134 @@ else {
   }
 }
 
-// ── 12. the clear button on search boxes ───────────────────────────────────────────
+// ── 5. the Columns panel: hide, add, and remove what the user made ─────────────────
 {
-  const boxes = await page.$$(SEL.search);
-  if (!boxes.length) skip(12, "search clear button", "no search box found");
-  else {
-    const total = await rowCount();
-    const box = boxes[0];
-    await box.click({ clickCount: 3 });
-    await box.type("a");
-    await sleep(700);
-    const visible = await page.evaluate(sel => {
-      const b = document.querySelector(sel);
-      return !!b && getComputedStyle(b).display !== "none" && b.getBoundingClientRect().width > 0;
-    }, SEL.clear);
-    if (!visible) gone(12, "no clear button appears when the box has text");
+  /** the panel usually hides behind a "Columns" button, and everything below needs
+   *  it open — a popover that closes on an outside click has to be re-opened too */
+  const openPanel = async () => {
+    if (await has(SEL.addColumn)) return true;
+    if (SEL.columnsBtn) await page.click(SEL.columnsBtn).catch(() => {});
     else {
-      pass(12, "the clear button appears with text");
-      await page.click(SEL.clear);
-      await sleep(700);
-      const value = await page.evaluate(sel => document.querySelector(sel).value, SEL.search);
-      const back = await rowCount();
-      value === "" ? pass(12, "clearing empties the field") : fail(12, "the field still has text", value);
-      back === total ? pass(12, "clearing restores the rows", `${back} of ${total}`)
-                     : fail(12, "the field cleared but the filter is still applied", `${back} of ${total}`);
+      const opener = await page.evaluateHandle(() =>
+        [...document.querySelectorAll("button, [role=button]")]
+          .find(b => /column|coloan/i.test(b.textContent) && !b.closest("table")));
+      const el = opener.asElement();
+      if (el) await el.click().catch(() => {});
+    }
+    await sleep(350);
+    return has(SEL.addColumn);
+  };
+  const headers = () => page.$$eval(SEL.head, ts => ts.map(t => t.textContent.trim()));
+  /** tick or untick a column by the word printed next to its box — stack-agnostic,
+   *  where a `data-` hook per column key is not */
+  const setVisible = (label, on) => page.evaluate((label, on, sel) => {
+    const box = [...document.querySelectorAll("input[type=checkbox]")].find(b => {
+      if (b.closest(sel.table) || b.closest(sel.menu)) return false;
+      const t = (b.closest("label")?.textContent || b.getAttribute("aria-label") || "").trim();
+      return t.toLowerCase().startsWith(label.toLowerCase());
+    });
+    if (!box) return false;
+    if (box.checked !== on) box.click();
+    return true;
+  }, label, on, SEL);
+
+  if (!(await openPanel())) gone(5, "no way to add a user-defined column");
+  else {
+    pass(5, "an add-column control exists");
+    /* R5's other half, and the reason it is a rule: hiding a column has to drop
+       what only its own header could show. A hidden column that still sorts or
+       still filters leaves a list ordered — or trimmed to 14 of 35 rows — by
+       something that is not on screen anywhere. */
+    const cols = await handleCols();
+    const victim = cols.find(c => c.label && c.n !== 0) ?? cols[0];
+    const total0 = await rowCount();
+    if (!victim) skip(5, "hiding a column drops its sort and its filter", "no labelled column found");
+    else {
+      // sort it, filter it, then take it off the table
+      await page.evaluate(c => {
+        const ths = [...document.querySelectorAll(window.__S.head)];
+        ths[c]?.click();
+      }, victim.col);
+      await sleep(250);
+      const sortedOn = await page.evaluate(c => {
+        const ths = [...document.querySelectorAll(window.__S.head)];
+        return ths[c]?.getAttribute("aria-sort") ?? null;
+      }, victim.col);
+      let filtered = total0;
+      if (await openMenu(victim.k)) {
+        const t = await ticks();
+        if (t.length >= 2) await clickTick(0);
+        await closeMenu();
+        filtered = await rowCount();
+      }
+      await openPanel();
+      const hid = await setVisible(victim.label, false);
+      await sleep(350);
+      if (!hid) gone(5, "no show/hide control for an existing column");
+      else {
+        const gonefromHead = !(await headers()).includes(victim.label);
+        gonefromHead ? pass(5, "unticking a column takes it off the table", victim.label)
+                     : fail(5, "the column is still in the header after being unticked", victim.label);
+        if (sortedOn === null)
+          skip(5, "hiding a column drops its sort", "no aria-sort on the headers to read it from");
+        else {
+          const orders = await page.$$eval(SEL.head, ts => ts.map(t => t.getAttribute("aria-sort")));
+          orders.every(o => o === "none" || o === null)
+            ? pass(5, "hiding the sorted column drops the sort", `was ${sortedOn}`)
+            : fail(5, "the list is still ordered by a column nobody can see", orders.join(","));
+        }
+        if (filtered === total0)
+          skip(5, "hiding a filtered column drops its filter", "the filter changed no rows");
+        else {
+          const back = await rowCount();
+          back === total0
+            ? pass(5, "hiding a filtered column drops its filter", `${filtered} → ${back} of ${total0}`)
+            : fail(5, "rows are still hidden by an invisible column's filter", `${back} of ${total0}`);
+        }
+        await openPanel();
+        await setVisible(victim.label, true);
+        await sleep(300);
+      }
+    }
+    /* And a column the USER made can be REMOVED, not merely hidden: he made it, so
+       he can unmake it. Hidden-only leaves it in the stored document forever with
+       no control anywhere that deletes it. */
+    await openPanel();
+    if (!(await has(SEL.newColumn)))
+      gone(5, "no name field beside the add-column control");
+    else {
+      const NAME = "Verify tmp";
+      const field = await page.$(SEL.newColumn);
+      await field.click({ clickCount: 3 });
+      await field.type(NAME);
+      await page.click(SEL.addColumn);
+      await sleep(500);
+      const made = (await headers()).some(h => h.toLowerCase().startsWith(NAME.toLowerCase()));
+      made ? pass(5, "the add-column control really adds one",
+                  "confirm by hand that it writes a real field to the database")
+           : fail(5, "the add-column control added no column", NAME);
+      if (made) {
+        await openPanel();
+        const removed = await page.evaluate((sel, name) => {
+          const btns = [...document.querySelectorAll(sel.colRemove)];
+          const b = btns.find(x => new RegExp(name, "i")
+                     .test(x.getAttribute("aria-label") + " " + (x.closest("label")?.textContent || "")))
+                 ?? btns[btns.length - 1];
+          if (!b) return false;
+          b.click();
+          return true;
+        }, SEL, NAME);
+        await sleep(500);
+        if (!removed)
+          gone(5, "a user-made column can be hidden but never removed");
+        else {
+          const still = (await headers()).some(h => h.toLowerCase().startsWith(NAME.toLowerCase()));
+          still ? fail(5, "the remove control left the column on the table", NAME)
+                : pass(5, "a user-made column can be removed", NAME);
+        }
+      }
     }
   }
-}
-
-// ── 5. add a column ────────────────────────────────────────────────────────────────
-{
-  // the control usually lives inside a "Columns" panel that has to be opened first
-  if (!(await has(SEL.addColumn))) {
-    const opener = await page.evaluateHandle(() =>
-      [...document.querySelectorAll("button, [role=button]")]
-        .find(b => /column|coloan/i.test(b.textContent) && !b.closest("table")));
-    const el = opener.asElement();
-    if (el) { await el.click().catch(() => {}); await sleep(300); }
-  }
-  (await has(SEL.addColumn))
-    ? pass(5, "an add-column control exists", "confirm by hand that it writes a real field to the database")
-    : gone(5, "no way to add a user-defined column");
 }
 
 pageErrors.length ? fail(0, "uncaught page errors", pageErrors.join(" | ")) : pass(0, "no uncaught page errors");
