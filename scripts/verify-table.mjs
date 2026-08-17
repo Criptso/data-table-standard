@@ -293,29 +293,65 @@ else {
   void before;
 }
 
-// ── 7. frozen first column ─────────────────────────────────────────────────────────
+// ── 7. frozen first column, and ONE scrollport for both planes ─────────────────────
 {
-  // narrow the window first: a table that happens to fit today will not fit tomorrow, and
-  // "it did not scroll" is a poor reason to leave freeze panes untested
-  await page.setViewport({ width: 640, height: VP.height });
-  await sleep(200);
-  const r = await page.evaluate(() => {
+  /* Both planes at once, at more than one width, and by DRIVING both scrolls.
+     A computed-style check stays green through the whole failure this exists for:
+     `position: sticky` is set on the header, the horizontal box simply is not the
+     box that scrolls vertically, so the band has nothing to stick to and leaves
+     the top the moment the page scrolls under it. The freeze and the sticky header
+     are one mechanism, and the widths matter because a table that fits at 1400
+     starts scrolling the moment a derived column arrives.
+     The window is SHORT on purpose: a table has to overflow vertically before
+     which box owns that overflow can be observed at all. */
+  const drive = () => page.evaluate(() => {
     const table = document.querySelector(window.__S.table);
-    let sc = window.__S.scroller ? document.querySelector(window.__S.scroller) : table?.parentElement;
-    while (sc && sc !== document.body && sc.scrollWidth <= sc.clientWidth) sc = sc.parentElement;
-    if (!sc || sc.scrollWidth <= sc.clientWidth) return { noScroll: true };
-    const row = document.querySelector(window.__S.rows);
-    const first = row.children[0], other = row.children[Math.min(2, row.children.length - 1)];
-    sc.scrollLeft = 0;
-    const a = first.getBoundingClientRect().x, oa = other.getBoundingClientRect().x;
-    sc.scrollLeft = Math.min(400, sc.scrollWidth - sc.clientWidth);
-    const b = first.getBoundingClientRect().x, ob = other.getBoundingClientRect().x;
-    sc.scrollLeft = 0;
-    return { held: Math.abs(a - b) < 2, otherMoved: Math.abs(oa - ob) > 10 };
+    let sc = window.__S.scroller ? document.querySelector(window.__S.scroller)
+                                 : table?.parentElement;
+    while (!window.__S.scroller && sc && sc !== document.body
+           && sc.scrollWidth <= sc.clientWidth && sc.scrollHeight <= sc.clientHeight)
+      sc = sc.parentElement;
+    const rows = [...document.querySelectorAll(window.__S.rows)]
+      .filter(r => !r.matches(window.__S.emptyRow) && !r.querySelector(window.__S.emptyRow));
+    const th = document.querySelector(window.__S.head);
+    if (!sc || !th || !rows.length) return { none: true };
+    const hx = sc.scrollWidth - sc.clientWidth;
+    const vy = sc.scrollHeight - sc.clientHeight;
+    const doc = document.scrollingElement;
+    const pageScrolls = doc.scrollHeight - doc.clientHeight > 4;
+    const first = rows[0].children[0];
+    const other = rows[0].children[Math.min(2, rows[0].children.length - 1)];
+    sc.scrollLeft = 0; sc.scrollTop = 0;
+    const h0 = th.getBoundingClientRect().top, f0 = first.getBoundingClientRect().x;
+    const o0 = other.getBoundingClientRect().x, r0 = rows[0].getBoundingClientRect().top;
+    sc.scrollLeft = Math.min(300, hx); sc.scrollTop = Math.min(160, vy);
+    const h1 = th.getBoundingClientRect().top, f1 = first.getBoundingClientRect().x;
+    const o1 = other.getBoundingClientRect().x, r1 = rows[0].getBoundingClientRect().top;
+    sc.scrollLeft = 0; sc.scrollTop = 0;
+    return { hx, vy, pageScrolls, sc: sc.className || sc.tagName,
+             headHeld: Math.abs(h1 - h0) < 2, colHeld: Math.abs(f1 - f0) < 2,
+             otherMoved: Math.abs(o1 - o0) > 10, rowsMoved: Math.abs(r1 - r0) > 10 };
   });
-  if (r.noScroll) skip(7, "frozen first column", "table still fits at 640px — nothing to scroll");
-  else if (r.held && r.otherMoved) pass(7, "first column stays put while the rest scrolls");
-  else fail(7, "first column is not frozen", `held=${r.held} otherMoved=${r.otherMoved}`);
+  for (const width of [VP.width, 1000, 640]) {
+    await page.setViewport({ width, height: 420 });
+    await sleep(220);
+    const r = await drive();
+    const at = `at ${width}px`;
+    if (r.none) { gone(7, "no table, rows or scrollport found", at); continue; }
+    // the vertical plane first: it is the one the trap hides in
+    if (!r.vy && r.pageScrolls)
+      fail(7, "the horizontal box does not own the vertical scroll — the sticky "
+            + "header has nothing to stick to", `${at}, the PAGE scrolls instead (${r.sc})`);
+    else if (!r.vy) skip(7, "one scrollport for both planes", `${at} the rows still fit — nothing to scroll down`);
+    else if (r.headHeld && r.rowsMoved)
+      pass(7, "the header holds while the rows scroll under it", `${at}, ${r.vy}px of overflow in .${r.sc}`);
+    else fail(7, "the header leaves the top on a vertical scroll",
+              `${at}, headHeld=${r.headHeld} rowsMoved=${r.rowsMoved}`);
+    if (!r.hx) skip(7, "frozen first column", `${at} the table still fits — nothing to scroll sideways`);
+    else if (r.colHeld && r.otherMoved)
+      pass(7, "first column stays put while the rest scrolls", `${at}, ${r.hx}px of overflow`);
+    else fail(7, "first column is not frozen", `${at}, held=${r.colHeld} otherMoved=${r.otherMoved}`);
+  }
   await page.setViewport(VP);
   await sleep(200);
 }
