@@ -140,6 +140,13 @@ Read these before writing the code; every one shipped at least once.
 - **The value list must exclude its own column's filter.** Otherwise unticking a value makes it
   vanish from the list along with its rows, and there is no way to tick it back. Excel excludes
   the column's own filter when building its list; do the same.
+- **Persist a value filter as the EXCLUDED set, never as the accepted one.** They look identical
+  on the screen where the ticks were made and diverge everywhere else. Store the accepted values
+  and every value that had not been seen at that moment is stranded outside the set forever:
+  filter Desk, untick one Symbol while Desk is narrowing the list, then clear Desk — the other
+  desks' symbols are gone, with nothing on screen to tick them back. Rows that arrive later are
+  gone the same way, which is worse, because nobody was there to see them go. A value passes
+  unless it is named in the excluded list; an empty list is no filter at all.
 - **Sorting must not fire from the menu handle or the resize grip.** They sit inside the header
   cell, and if they share a listener node, `stopPropagation` will not save you — guard on the
   target.
