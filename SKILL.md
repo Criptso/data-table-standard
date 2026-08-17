@@ -117,6 +117,20 @@ Read these before writing the code; every one shipped at least once.
   row from a range whose bounds came from the date picker. Reduce every date to its calendar day
   anchored at UTC before displaying, sorting or comparing it. Then both range bounds are plainly
   inclusive. Sorting dates as text lies too: `July 7, 2023` sorts after `2026-06-03`.
+- **A missing date renders as EMPTY, never as a dash.** Rule 14 covers the date that cannot be
+  read; this is the one that is not there. One "—" in a column of dates and the column stops
+  reading as dates at all — to the eye, and to anything that decides what a column holds by
+  looking at its values, this verifier included. An em dash elsewhere is fine and useful; in a
+  date column it costs the column its identity. Leave the cell blank.
+- **The sticky header and the frozen first column must share ONE scrollport.** `position: sticky`
+  resolves against the nearest scrolling ancestor, so an `overflow-x` box that does not also own
+  the vertical scroll kills the header exactly where the freeze begins: the page scrolls instead
+  of the box, the band has nothing to stick to, and it leaves the top with a thousand pixels of
+  rows still on screen. The vicious part is that a computed-style check stays green throughout —
+  `position: sticky` is set, the element simply has nothing to stick against. Give the box a
+  bounded height as well as `overflow: auto`, and drive **both planes at once, at several
+  viewport widths**: a table that fits today starts scrolling the moment a derived column
+  arrives, and reading the CSS will never tell you which box moved.
 - **A menu that re-renders closes itself.** If clicking inside the menu rebuilds its innerHTML,
   the clicked node is detached by the time the event reaches `document`, so an outside-click
   handler sees a click from nowhere and closes the menu. Every tick closed it. Stamp the event
