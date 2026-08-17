@@ -868,19 +868,58 @@ else {
        something that is not on screen anywhere. */
     const cols = await handleCols();
     const victim = cols.find(c => c.label && c.col >= 0);
+    /* The sort has to be judged by the ORDER OF THE ROWS, not by an aria-sort on the
+       header: hiding the sorted column takes that header off the table, so every
+       remaining one reads "none" and a surviving invisible sort looks like a dropped
+       one. The witness is the column with the most distinct values — the join of them
+       is a row-order signature, and one with repeats would not change when the rows
+       move. */
+    const spread = await page.evaluate(`(() => {
+      const rows = ${DATA_ROWS};
+      return [...document.querySelectorAll(window.__S.head)].map((th, i) => ({
+        label: th.textContent.trim(), i,
+        n: new Set(rows.map(r => (r.children[i]?.textContent || "").trim())).size }));
+    })()`);
+    const witness = spread.filter(c => c.label && c.label !== victim?.label)
+                          .sort((a, b) => b.n - a.n)[0];
+    const sigOf = async () => {
+      const c = (await headers()).indexOf(witness.label);
+      return c < 0 ? null : (await colText(c)).join("|");
+    };
+    const clickTh = c => page.evaluate(c => {
+      [...document.querySelectorAll(window.__S.head)][c]?.click();
+    }, c).then(() => sleep(280));
     const total0 = await rowCount();
-    if (!victim) skip(5, "hiding a column drops its sort and its filter", "no labelled column found");
+    if (!victim || !witness)
+      skip(5, "hiding a column drops its sort and its filter", "needs two labelled columns");
     else {
-      // sort it, filter it, then take it off the table
-      await page.evaluate(c => {
-        const ths = [...document.querySelectorAll(window.__S.head)];
-        ths[c]?.click();
-      }, victim.col);
-      await sleep(250);
-      const sortedOn = await page.evaluate(c => {
-        const ths = [...document.querySelectorAll(window.__S.head)];
-        return ths[c]?.getAttribute("aria-sort") ?? null;
-      }, victim.col);
+      const sig0 = await sigOf();
+      await clickTh(victim.col);
+      let sorted = await sigOf();
+      if (sorted === sig0) { await clickTh(victim.col); sorted = await sigOf(); }   // try the other direction
+      await openPanel();
+      const hid = await setVisible(victim.label, false);
+      await sleep(350);
+      if (!hid) gone(5, "no show/hide control for an existing column");
+      else {
+        const off = !(await headers()).includes(victim.label);
+        off ? pass(5, "unticking a column takes it off the table", victim.label)
+            : fail(5, "the column is still in the header after being unticked", victim.label);
+        if (sorted === sig0)
+          skip(5, "hiding the sorted column drops the sort",
+               `sorting ${victim.label} moves no row — nothing to observe`);
+        else {
+          const now = await sigOf();
+          now !== sorted
+            ? pass(5, "hiding the sorted column drops the sort", `the rows left ${victim.label}'s order`)
+            : fail(5, "the list is still ordered by a column nobody can see", victim.label);
+        }
+        await openPanel();
+        await setVisible(victim.label, true);
+        await sleep(300);
+      }
+      // the filter, on its own hide cycle: one drive that changes two things cannot
+      // say which of them came back
       let filtered = total0;
       if (await openMenu(victim.k)) {
         const t = await ticks();
@@ -888,30 +927,16 @@ else {
         await closeMenu();
         filtered = await rowCount();
       }
-      await openPanel();
-      const hid = await setVisible(victim.label, false);
-      await sleep(350);
-      if (!hid) gone(5, "no show/hide control for an existing column");
+      if (filtered === total0)
+        skip(5, "hiding a filtered column drops its filter", `no value filter on ${victim.label} changed a row`);
       else {
-        const gonefromHead = !(await headers()).includes(victim.label);
-        gonefromHead ? pass(5, "unticking a column takes it off the table", victim.label)
-                     : fail(5, "the column is still in the header after being unticked", victim.label);
-        if (sortedOn === null)
-          skip(5, "hiding a column drops its sort", "no aria-sort on the headers to read it from");
-        else {
-          const orders = await page.$$eval(SEL.head, ts => ts.map(t => t.getAttribute("aria-sort")));
-          orders.every(o => o === "none" || o === null)
-            ? pass(5, "hiding the sorted column drops the sort", `was ${sortedOn}`)
-            : fail(5, "the list is still ordered by a column nobody can see", orders.join(","));
-        }
-        if (filtered === total0)
-          skip(5, "hiding a filtered column drops its filter", "the filter changed no rows");
-        else {
-          const back = await rowCount();
-          back === total0
-            ? pass(5, "hiding a filtered column drops its filter", `${filtered} → ${back} of ${total0}`)
-            : fail(5, "rows are still hidden by an invisible column's filter", `${back} of ${total0}`);
-        }
+        await openPanel();
+        await setVisible(victim.label, false);
+        await sleep(400);
+        const back = await rowCount();
+        back === total0
+          ? pass(5, "hiding a filtered column drops its filter", `${filtered} → ${back} of ${total0}`)
+          : fail(5, "rows are still hidden by an invisible column's filter", `${back} of ${total0}`);
         await openPanel();
         await setVisible(victim.label, true);
         await sleep(300);
