@@ -4,8 +4,8 @@ description: >-
   The house standard for any multi-column list, in any app and any stack: sticky high-contrast
   header, click-to-sort, a per-column menu (filter by value, search, date range, derived
   columns), frozen first column, add-column that reaches the database, smart widths with
-  Excel-style wrap, a 3-line cap per cell with hover reveal, resizable rows and columns, and
-  one date format. Use BEFORE building or changing any table, grid, or list with more than one
+  Excel-style wrap, a 3-line cap per cell with hover reveal, resizable rows and columns,
+  right-aligned tabular figures, and one date format. Use BEFORE building or changing any table, grid, or list with more than one
   column — dashboards, admin screens, inventory, reports, invoices, anything with rows. Also
   use when a table already exists and is being reviewed, extended, or restyled, and whenever
   someone says the list should behave "like Excel" or "like Sheets". Ships a browser-driven
@@ -32,7 +32,7 @@ about to write `<table>`, a data grid, a `.map()` over rows, or reach for a grid
 read this first and plan the schema for custom fields and per-user column preferences from the
 start — retrofitting persistence is the expensive half.
 
-## The 14 rules
+## The 15 rules
 
 1. **Header band, and its contrast is measurable.** Distinct background, bold, tracked, sticky
    on scroll, with a clear separator from the rows. **The header must be brighter than the rows
