@@ -758,17 +758,22 @@ else {
 // ── 11 + 14. dates ─────────────────────────────────────────────────────────────────
 {
   const FMT = /^\d{1,2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4}$/;
-  const dateCells = await page.evaluate(() => {
-    const rows = [...document.querySelectorAll(window.__S.rows)];
+  /* A date column is detected past its HOLES on purpose. Requiring every cell to
+     parse meant a column with one dash in it stopped being a date column, and the
+     dash check below — the whole reason the holes are collected — could never fire. */
+  const dateCells = await page.evaluate(`(() => {
+    const rows = ${DATA_ROWS};
     if (!rows.length) return [];
+    const dash = s => /^(—|–|-|--|n\\/a|null|none)$/i.test(s);
     const n = rows[0].children.length, out = [];
     for (let i = 0; i < n; i++) {
-      const vals = rows.map(r => r.children[i]?.textContent.trim()).filter(Boolean);
-      if (vals.length && vals.every(v => !Number.isNaN(Date.parse(v)) && /\d{4}/.test(v)))
-        out.push({ i, sample: vals[0] });
+      const cells = rows.map(r => r.children[i]?.textContent.trim() ?? "");
+      const vals = cells.filter(v => v && !dash(v));
+      if (vals.length >= 2 && vals.every(v => !Number.isNaN(Date.parse(v)) && /\\d{4}/.test(v)))
+        out.push({ i, sample: vals[0], dashes: cells.filter(dash), blanks: cells.filter(v => !v).length });
     }
     return out;
-  });
+  })()`);
   if (!dateCells.length) skip(14, "date formatting", "no date column detected");
   else {
     const bad = dateCells.filter(c => !FMT.test(c.sample));
@@ -777,6 +782,14 @@ else {
       : fail(14, "dates are not in 'd Mmm YYYY'", bad.map(c => c.sample).join(", "));
     const invalid = await page.evaluate(() => document.querySelector(window.__S.table).textContent.includes("Invalid"));
     invalid ? fail(14, "a cell renders as Invalid Date") : pass(14, "nothing renders as Invalid Date");
+    /* A missing date is EMPTY, never a dash: one "—" and the column stops reading as
+       dates at all — to the eye and to the detection above. */
+    const dashed = dateCells.filter(c => c.dashes.length);
+    dashed.length === 0
+      ? pass(14, "a missing date renders as empty, not as a dash",
+             `${dateCells.reduce((a, c) => a + c.blanks, 0)} blank of ${await rowCount()} rows`)
+      : fail(14, "a date column prints a dash where the date is missing",
+             dashed.map(c => `${c.dashes.length}× "${c.dashes[0]}"`).join(", "));
     // rule 11: does that column's menu offer a range?
     if (await has(SEL.menuHandle)) {
       const handles = await page.$$(SEL.menuHandle);
