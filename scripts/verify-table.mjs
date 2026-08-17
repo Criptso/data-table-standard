@@ -550,6 +550,211 @@ else {
   }
 }
 
+// ── 4. the in-column search and the value list are ONE control ─────────────────────
+{
+  await closeMenu();
+  const cols = await handleCols();
+  let found = null;
+  for (const h of cols.slice(0, 8)) {
+    if (!(await openMenu(h.k))) continue;
+    const t = await ticks();
+    if (t.length >= 3 && await has(scoped(SEL.menu, SEL.search))) { found = { h, t }; break; }
+    await closeMenu();
+  }
+  if (!found)
+    skip(4, "the in-column search narrows the value list",
+         "no column menu with both a search box and a list long enough to narrow");
+  else {
+    const word = t => (t.aria || t.label).trim();
+    /* The query comes off a word the operator can READ. Where the printed word
+       differs from the stored value — "In market" over a row that says `in_market` —
+       a search matched against the stored value alone finds nothing and empties the
+       list, which is the failure this half of the check is for. A query that spans
+       the space is the one that tells them apart. */
+    const spaced = found.t.find(t => /\S\s\S/.test(word(t)));
+    const src = spaced ?? found.t[0];
+    const q = spaced ? word(src).slice(0, word(src).indexOf(" ") + 3) : word(src).slice(0, 3);
+    const box = await page.$(scoped(SEL.menu, SEL.search));
+    await box.click({ clickCount: 3 });
+    await box.type(q);
+    await sleep(450);
+    const after = await ticks();
+    const n0 = found.t.length, n1 = after.length;
+    if (n1 === n0)
+      fail(4, "the value list does not move while the search narrows the rows — "
+            + "that is two controls, not one", `${n0} ticks before and after "${q}"`);
+    else if (n1 === 0 && spaced)
+      fail(4, "searching the word on screen empties the list — the search reads the "
+            + "stored value only", `"${q}" from "${word(src)}" matched nothing`);
+    else if (n1 === 0)
+      fail(4, "the search matched none of its own values", `"${q}" of ${n0}`);
+    else {
+      pass(4, "the in-column search narrows the value list", `${n0} → ${n1} on "${q}"`);
+      const kept = after.some(t => word(t).toLowerCase().startsWith(q.toLowerCase()));
+      if (!spaced) skip(4, "the search matches the DISPLAYED word",
+                        "no printed word here differs from its stored value — the two "
+                        + "paths cannot be told apart from the browser");
+      else kept ? pass(4, "the search matches the word on screen", `"${q}" → "${word(src)}"`)
+                : fail(4, "the queried word is gone from its own list", `"${q}"`);
+    }
+    await box.click({ clickCount: 3 });
+    await page.keyboard.press("Backspace");
+    await sleep(350);
+    await closeMenu();
+  }
+}
+
+// ── 4. a value filter stores what is EXCLUDED, not what was accepted ───────────────
+{
+  /* The trap, driven: filter column A, untick a value in column B while A's filter
+     is narrowing B's list, then lift A. Every B value that was NOT on screen when
+     B's filter was made has to come back. Store the ACCEPTED set instead and those
+     values are stranded outside it forever — including rows that only arrive later. */
+  await closeMenu();
+  const cols = await handleCols();
+  const counted = [];
+  for (const h of cols.slice(0, 8)) {
+    if (!(await openMenu(h.k))) continue;
+    counted.push({ ...h, n: (await ticks()).length });
+    await closeMenu();
+  }
+  const wide = counted.filter(c => c.n >= 2).sort((a, b) => b.n - a.n)[0];
+  const narrowers = counted.filter(c => c.n >= 2 && c !== wide);
+  if (!wide || !narrowers.length)
+    skip(4, "filters store the excluded set", "needs two columns with values to tick");
+  else {
+    const all = new Set(await colText(wide.col));
+    let scenario = null;
+    for (const nrw of narrowers) {
+      await openMenu(nrw.k);
+      await clickTick(0);                       // exclude one value of the narrowing column
+      await closeMenu();
+      const under = new Set(await colText(wide.col));
+      const unseen = [...all].filter(v => !under.has(v));
+      if (unseen.length) { scenario = { nrw, unseen, under }; break; }
+      await openMenu(nrw.k);                    // no narrowing here: put it back and move on
+      await clickTick(0);
+      await closeMenu();
+    }
+    if (!scenario)
+      skip(4, "filters store the excluded set",
+           "no column here narrows another's value list — the two shapes cannot be told apart");
+    else {
+      const before = await rowCount();
+      await openMenu(wide.k);
+      await clickTick(0);                       // a filter made while values are out of sight
+      await closeMenu();
+      const narrowed = await rowCount();
+      await openMenu(scenario.nrw.k);
+      await clickTick(0);                       // lift the other column's filter
+      await closeMenu();
+      const back = new Set(await colText(wide.col));
+      const stranded = scenario.unseen.filter(v => !back.has(v));
+      narrowed < before
+        ? pass(4, "unticking a value hides its rows", `${before} → ${narrowed}`)
+        : fail(4, "unticking a value changed nothing", `${before} rows either way`);
+      stranded.length === 0
+        ? pass(4, "values unseen when the filter was made come back",
+               `${scenario.unseen.length} of them, via ${scenario.nrw.label || "another column"}`)
+        : fail(4, "a value the filter never saw is stranded — the accepted set was "
+                + "stored instead of the excluded one",
+               `${stranded.length} gone: ${stranded.slice(0, 3).join(", ")}`);
+    }
+  }
+  /* Filters are a question, not a layout: a reload is the cheapest way back to a
+     whole table for the checks below, and it proves they are session-local too. */
+  await page.reload({ waitUntil: "networkidle2" });
+  await page.waitForSelector(SEL.rows).catch(() => {});
+  await sleep(200);
+}
+
+// ── 12. clearing a search RESTORES the rows — the ✕ and Escape, separately ─────────
+{
+  /* Ordering hazard, learned the hard way: rule 11 shuts the column menu with
+     Escape, and in most tables that menu holds the only search box — so a rule 12
+     that ran afterwards found nothing, SKIPPED, and the two behaviours it exists for
+     went untested. This block opens its own menu and depends on no other. */
+  await closeMenu();
+  const inMenu = scoped(SEL.menu, SEL.search);
+  if (!(await has(inMenu))) {
+    const cols = await handleCols();
+    for (const h of cols.slice(0, 8)) {
+      if (await openMenu(h.k) && await has(inMenu)) break;
+      await closeMenu();
+    }
+  }
+  const searchSel = (await has(inMenu)) ? inMenu : SEL.search;
+  const boxes = await page.$$(searchSel);
+  if (!boxes.length) gone(12, "no search box — not on the page, not in a column menu");
+  else {
+    const total = await rowCount();
+    const box = boxes[0];
+    // a query nothing can match: the rows either move or the box is decoration
+    const Q = "zzqx";
+    const typeQ = async () => {
+      await box.click({ clickCount: 3 });
+      await box.type(Q);
+      await sleep(700);
+    };
+    await typeQ();
+    const narrowed = await rowCount();
+    narrowed < total ? pass(12, "typing in the box filters the rows", `${total} → ${narrowed}`)
+                     : fail(12, "typing in the search box changes nothing", `${total} rows either way`);
+    /* Rule 4's other half, and this is the one moment it can be driven: a body
+       emptied by a filter must SAY it was filtered, or it reads as broken. */
+    if (narrowed !== 0)
+      skip(4, "the filtered-empty message", `the query still matched ${narrowed} rows`);
+    else {
+      const msg = await page.evaluate(sel => {
+        const t = document.querySelector(sel);
+        const el = [...t.querySelectorAll("*")].find(e =>
+          /no (rows|records|results|matching)/i.test(e.textContent)
+          && getComputedStyle(e).display !== "none");
+        return el ? el.textContent.replace(/\s+/g, " ").trim().slice(0, 60) : "";
+      }, SEL.table);
+      msg ? pass(4, "a table emptied by its filters says so", msg)
+          : fail(4, "the body is empty with nothing saying why — filtered and "
+                  + "no-data look identical", "0 rows, no message");
+    }
+    // A: the ✕ — and it has to restore the ROWS, not only blank the field
+    const clearSel = (await has(scoped(SEL.menu, SEL.clear))) ? scoped(SEL.menu, SEL.clear) : SEL.clear;
+    const visible = await page.evaluate(sel => {
+      const b = document.querySelector(sel);
+      return !!b && getComputedStyle(b).display !== "none" && b.getBoundingClientRect().width > 0;
+    }, clearSel);
+    if (!visible) gone(12, "no clear button appears when the box has text");
+    else {
+      pass(12, "the clear button appears with text");
+      await page.click(clearSel);
+      await sleep(700);
+      const value = await box.evaluate(e => e.isConnected ? e.value : "");
+      const back = await rowCount();
+      value === "" ? pass(12, "the ✕ empties the field") : fail(12, "the field still has text", value);
+      back === total ? pass(12, "the ✕ restores the rows", `${back} of ${total}`)
+                     : fail(12, "the field cleared but the filter is still applied", `${back} of ${total}`);
+    }
+    // B: Escape, tested on its own — the same two things, and neither is implied
+    // by the other having worked
+    if (!(await box.evaluate(e => e.isConnected)))
+      skip(12, "Escape clears the search", "the ✕ took the box with it");
+    else {
+      await typeQ();
+      const dropped = await rowCount();
+      await page.keyboard.press("Escape");
+      await sleep(700);
+      const live = await box.evaluate(e => e.isConnected);
+      const value = live ? await box.evaluate(e => e.value) : "";
+      const back = await rowCount();
+      if (!live) pass(12, "Escape emptied the field", "by closing the menu it lived in");
+      else value === "" ? pass(12, "Escape empties the field")
+                        : fail(12, "Escape left the text in the box", value);
+      back === total ? pass(12, "Escape restores the rows", `${back} of ${total} after ${dropped}`)
+                     : fail(12, "Escape blanked the box but left the filter on", `${back} of ${total}`);
+    }
+    await closeMenu();
+  }
+}
+
 // ── 11 + 14. dates ─────────────────────────────────────────────────────────────────
 {
   const FMT = /^\d{1,2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4}$/;
