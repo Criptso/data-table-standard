@@ -220,3 +220,12 @@ TZ=America/Los_Angeles node scripts/verify-table.mjs <url>
 ```
 
 Report the output as evidence. "I checked it" is not evidence.
+
+**When you add a check, two things about the driving itself.** One: the checks share a page, so
+one that tidies up disarms the next. Rule 11's block used to close the column menu with Escape,
+and the menu holds the only search box on the page — so rule 12 found nothing, reported SKIP, and
+the two behaviours it exists for went untested for as long as the output looked clean. Every block
+that needs a control open now opens it itself. Two: a check that cannot fail is decoration. Break
+the behaviour on purpose, watch the line turn FAIL, and only then trust the PASS — and where a
+behaviour genuinely cannot be driven headlessly, say so as an explicit SKIP **with the reason**,
+never by leaving it out.
