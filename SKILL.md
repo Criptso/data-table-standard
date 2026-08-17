@@ -99,6 +99,14 @@ start — retrofitting persistence is the expensive half.
     the storage format is. Storage keeps its own shape; only the display is normalised. An
     unparseable date shows as it arrived, never as "Invalid Date", and range filtering works on
     the stored value rather than the printed text.
+15. **Numeric columns align right, in a monospaced face, with `tabular-nums`.** Digits then sit
+    in the same column down the whole list, so two magnitudes are comparable at a glance instead
+    of being read digit by digit — which is the entire reason a price column exists. Proportional
+    figures ragged on the left are what a spreadsheet has never once done. The values are what
+    aligns right; the title above them is a title and stays centred with the rest (rule 2). Note
+    that either mechanism does the job — `font-variant-numeric: tabular-nums` or
+    `font-feature-settings: "tnum"` — and that one of them inherited from `body` covers the whole
+    table.
 
 ## Traps that have already cost time
 
