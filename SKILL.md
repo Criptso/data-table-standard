@@ -54,7 +54,7 @@ start — retrofitting persistence is the expensive half.
    you type**, so the values and the search read as one thing. A list that does not move while
    the rows do says the field is dead. And when the filters empty the body, **the table states
    "No rows match the filters"** instead of showing nothing: an empty body reads as broken, and
-   the operator cannot tell it from having no data.
+   the user cannot tell it from having no data at all.
 5. **A "Columns" button that creates columns**, not only hides them. A new user column becomes
    a real field in the database (a migration or a custom-fields table), not a UI-only ghost.
    Show/hide of existing columns lives here too — and **hiding a column drops that column's
