@@ -65,9 +65,10 @@ The rules are stack-agnostic; an implementation is not. A React component would 
 vanilla table and vice versa, so the portable artefact is the check, which drives the built page
 and works against anything that renders HTML.
 
-[`reference/mechanics.md`](reference/mechanics.md) has the fiddly parts as copyable snippets:
-freeze panes that follow column order, a clamp that survives being inside a `<td>`, a menu that
-does not close itself when it re-renders, and the date handling that keeps a calendar day from
-drifting across time zones.
+[`reference/mechanics.md`](reference/mechanics.md) has the fiddly parts as copyable snippets: the
+one scrollport both frozen planes need, freeze panes that follow column order, a clamp that
+survives being inside a `<td>`, a menu that does not close itself when it re-renders, a debounced
+layout write that survives the page unloading inside its own window, and the date handling that
+keeps a calendar day from drifting across time zones.
 
 MIT.
