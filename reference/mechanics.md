@@ -1,7 +1,26 @@
 # Mechanics worth copying
 
 Short notes on the parts that are fiddly to get right, lifted from a working vanilla-JS
-implementation of all 14 rules.
+implementation of all 15 rules.
+
+## One scrollport, both planes
+
+Everything below depends on this box. `position: sticky` resolves against the nearest scrolling
+ancestor, so the header band and the frozen column are only both live inside the *same*
+scrollport — and that box has to own the **vertical** scroll as well as the horizontal one. Give
+it `overflow: auto` and a bounded height; with the height left off, the page scrolls instead, the
+header has nothing to stick to, and it slides off the top while the rows keep coming.
+
+```css
+/* the reading window is the room between the app's fixed bands */
+.tbl-scroll { overflow: auto;
+              max-height: calc(100dvh - var(--rail-h) - var(--footer-h) - var(--gap)); }
+```
+
+Two failure modes it is worth knowing you have avoided: `overflow-x: auto` alone (horizontal
+freeze works, sticky header dies), and a box that only becomes a scrollport below some
+breakpoint — a table widened by one derived column then hangs off its panel at full width instead
+of scrolling inside it.
 
 ## Freeze panes that follow the user's column order
 
@@ -14,8 +33,9 @@ thead th:first-child{ left: 0; z-index: 12; }          /* the shared corner */
 tbody td:first-child{ position: sticky; left: 0; z-index: 2; background: var(--bg); }
 ```
 
-Row hover and selection must repaint the frozen cell too, or it stays the wrong colour while
-the rest of the row lights up.
+`top: 0`, not the height of the app's header bar: inside a scrollport, sticky is measured from
+the box. Row hover and selection must repaint the frozen cell too, or it stays the wrong colour
+while the rest of the row lights up.
 
 ## Short columns keep their width, long text yields
 
