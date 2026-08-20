@@ -32,7 +32,7 @@ about to write `<table>`, a data grid, a `.map()` over rows, or reach for a grid
 read this first and plan the schema for custom fields and per-user column preferences from the
 start — retrofitting persistence is the expensive half.
 
-## The 18 rules
+## The 19 rules
 
 1. **Header band, and its contrast is measurable.** Distinct background, bold, tracked, sticky
    on scroll, with a clear separator from the rows. **Target ≥7:1 against its own background.**
@@ -145,6 +145,22 @@ start — retrofitting persistence is the expensive half.
     it reads as an extension of the header it came from. And a menu that opens *over* its own
     column hides the very values the filter is about — put it against the column's right edge,
     flipping to the left when the viewport runs out, and keep its top under the header band.
+
+19. **When the time of day is information, the cell carries the clock — under the day, not
+    beside it.** In a log, a journal, an audit trail, an order book, WHEN is data: the same
+    event at 06:00 and at 14:40 is two different events, and a day-only column hides that.
+    Two things make it work. Stack the clock under the date rather than appending it, because
+    a date column is usually a never-shrink column — appending widened one table 22px past its
+    container, which nobody saw by eye and the driven gate caught. And put a real space between
+    the two, not only a `<br>`: `textContent` joins them, so `15 Aug 202611:35Z` is what a
+    checker parses, a screen reader announces and a copy-paste yields. The date's own shape
+    (rule 14) is unchanged — the clock is a second line, not a different format. Say which
+    clock it is (`12:10Z`, or the zone in the header) and keep ONE across the product; two
+    clocks that disagree by three hours are worse than none. A value naming no time of day gets
+    an empty second line, never a fabricated `00:00` — that invents precision the record does
+    not have. **Detection must follow the format**: a date checker that only knows the bare day
+    stops recognising the column the moment a clock joins it, and a column it cannot see is a
+    column it SKIPS — which reads exactly like a column that passed.
 
 ## Traps that have already cost time
 
