@@ -859,9 +859,12 @@ else {
       // a numeric date (19.08.2026) is a date column too, and it has to be DETECTED so it
       // can FAIL rule 14 — otherwise the worst format on the list is the one that skips
       const numeric = v => /^\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4}$/.test(v);
-      const readable = v => written(v) || numeric(v) || (!Number.isNaN(Date.parse(v)) && /\\d{4}/.test(v));
+      const readable = v => written(v) || numeric(v) || (!Number.isNaN(Date.parse(day(v))) && /\\d{4}/.test(v));
       if (vals.length >= 2 && vals.every(readable))
-        out.push({ i, sample: vals[0], dashes: cells.filter(dash), blanks: cells.filter(v => !v).length });
+        out.push({ i, sample: vals[0], day: day(vals[0]),
+                   clocked: vals.filter(v => clock.test(v)).length,
+                   glued: vals.filter(v => /\\d{4}\\d{1,2}:\\d{2}/.test(v)).length,
+                   dashes: cells.filter(dash), blanks: cells.filter(v => !v).length });
     }
     return out;
   })()`);
