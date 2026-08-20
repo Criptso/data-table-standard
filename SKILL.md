@@ -32,13 +32,15 @@ about to write `<table>`, a data grid, a `.map()` over rows, or reach for a grid
 read this first and plan the schema for custom fields and per-user column preferences from the
 start — retrofitting persistence is the expensive half.
 
-## The 15 rules
+## The 17 rules
 
 1. **Header band, and its contrast is measurable.** Distinct background, bold, tracked, sticky
-   on scroll, with a clear separator from the rows. **The header must be brighter than the rows
-   it labels** — target ≥7:1 against its own background. This is not taste: a table shipped with
-   a header at 3.19:1 while its rows sat at 6.45:1, and on a monitor turned down the header was
-   simply invisible. Measure it; do not judge by eye on a bright screen.
+   on scroll, with a clear separator from the rows. **Target ≥7:1 against its own background.**
+   This is not taste: a table shipped with a header at 3.19:1 while its rows sat at 6.45:1, and
+   on a monitor turned down the header was simply invisible. Measure it; do not judge by eye on
+   a bright screen. The old form of this rule also demanded the header out-contrast the rows,
+   which quietly forbade a *light* band — once the band lightens, text on it necessarily
+   contrasts less. What replaces that half is rule 16: the band must be its own shade.
 2. **Column titles centred, bold, UPPERCASE** unless that table's brief says otherwise.
 3. **Click the title to sort**, asc/desc, with a direction indicator, and the active column
    visibly marked. Corollary that bites: **if the default sort is on a field with no visible
@@ -87,8 +89,10 @@ start — retrofitting persistence is the expensive half.
     30 days / 3 months / 12 months) and an exact from/to on the browser's native date input. A
     period is just a "from" N days back with the end open, so it writes into the from box and
     stays adjustable. "To" covers its whole day.
-12. **Every search box carries a ✕ inside its right edge**, appearing only when there is text,
-    with Escape doing the same. **It must restore the rows, not merely blank the field** — a
+12. **Every search box carries a ✕ inside its right edge**, and the box itself is findable by a
+    hook — `type="search"` or `data-search` — never by an English word in its placeholder: a
+    table written in another language is still a table that has to be checked., appearing only when there is text,
+    Escape does the same. **It must restore the rows, not merely blank the field** — a
     button that empties the box while the filter stays applied is worse than no button, because
     then you believe you removed it. Test those two things separately. Hide the browser's own
     search-cancel glyph so there is one control, not two.
@@ -113,6 +117,23 @@ start — retrofitting persistence is the expensive half.
     that either mechanism does the job — `font-variant-numeric: tabular-nums` or
     `font-feature-settings: "tnum"` — and that one of them inherited from `body` covers the whole
     table.
+
+16. **The header band is its own shade, measured.** Its background differs from the row
+    background by a visible step — **ΔL\* ≥ 5**, which for a dark theme means roughly 10–20%
+    lighter than the rows. "A different colour" is not enough: two colours can differ in hue and
+    still read as the same surface on a screen turned down, which is where every one of these
+    header failures has happened. The direction is a design choice — a light band over dark rows
+    or the reverse — but the step has to be there, and it has to survive the theme swap.
+
+17. **The column menu also places the text.** Alongside sorting and filtering, the menu carries:
+    **horizontal alignment — left, centre, right**, chosen per column; and a **wrap toggle**,
+    deciding whether a value keeps to one line or runs onto several. **Vertical alignment is not
+    a choice**: cells are always centred vertically, so the eye tracks one line across a row of
+    mixed-height cells. **None of it applies to the header**, which is fixed: centred on both
+    axes, always wrapping (rule 2 makes it uppercase and bold, and a title that cannot wrap
+    forces a column wider than its data ever needed). A numeric column starts right-aligned
+    (rule 15) and a text column starts left-aligned; the menu is where that default is overridden,
+    and the choice persists with the rest of the layout (rule 6).
 
 ## Traps that have already cost time
 
