@@ -849,7 +849,13 @@ else {
       const vals = cells.filter(v => v && !dash(v));
       // Date.parse only knows English month names, so a localised column would go
       // undetected — and an undetected column SKIPS its checks, which reads as clean
-      const written = v => /^\\d{1,2} \\p{L}{3,12}\\.? \\d{4}$/u.test(v);
+      // rule 19: a journal column carries a clock under the day, so the cell's text is
+      // "15 Aug 2026 11:35Z". Strip a trailing clock before judging the shape — a checker
+      // that only knows the bare day stops SEEING such a column, and an unseen column is
+      // skipped, which reads exactly like a passing one.
+      const clock = /[ \\u00a0]\\d{1,2}:\\d{2}(:\\d{2})?\\s*(Z|[A-Z]{2,5}|[+-]\\d{2}:?\\d{2})?$/;
+      const day = v => v.replace(clock, "").trim();
+      const written = v => /^\\d{1,2} \\p{L}{3,12}\\.? \\d{4}$/u.test(day(v));
       // a numeric date (19.08.2026) is a date column too, and it has to be DETECTED so it
       // can FAIL rule 14 — otherwise the worst format on the list is the one that skips
       const numeric = v => /^\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4}$/.test(v);
