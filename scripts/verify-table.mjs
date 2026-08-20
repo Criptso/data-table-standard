@@ -199,10 +199,14 @@ const CONTRAST = `
        both was asking for a band that could never be light. */
     if (m.headLum == null || m.rowLum == null) skip(16, "band luminance", "colours not readable");
     else {
-      const delta = Math.abs(m.headLum - m.rowLum) / Math.max(m.rowLum, 0.02);
-      delta >= 0.08
-        ? pass(16, "the header band is its own shade", `${Math.round(delta * 100)}% față de rânduri`)
-        : fail(16, "the header band melts into the rows", `${Math.round(delta * 100)}% — sub 8%`);
+      /* measured in L*, not in raw luminance: on a dark table the two backgrounds sit so
+         low that a plain ratio reports 180% for a step the eye reads as one notch. L* is
+         what "10-20% lighter" means to the person looking at it. */
+      const L = y => y > 0.008856 ? 116 * Math.cbrt(y) - 16 : 903.3 * y;
+      const d = Math.round(Math.abs(L(m.headLum) - L(m.rowLum)));
+      d >= 5
+        ? pass(16, "the header band is its own shade", `ΔL* ${d} față de rânduri`)
+        : fail(16, "the header band melts into the rows", `ΔL* ${d} — sub 5`);
     }
     const opaque = m.headBg !== m.bodyBg && !/rgba\(0, 0, 0, 0\)|transparent/.test(m.headBg);
     opaque ? pass(1, "header has its own background", m.headBg)
