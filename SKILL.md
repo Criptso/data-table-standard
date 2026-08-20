@@ -32,7 +32,7 @@ about to write `<table>`, a data grid, a `.map()` over rows, or reach for a grid
 read this first and plan the schema for custom fields and per-user column preferences from the
 start — retrofitting persistence is the expensive half.
 
-## The 17 rules
+## The 18 rules
 
 1. **Header band, and its contrast is measurable.** Distinct background, bold, tracked, sticky
    on scroll, with a clear separator from the rows. **Target ≥7:1 against its own background.**
@@ -138,6 +138,13 @@ start — retrofitting persistence is the expensive half.
     return arrow for wrap — so the row costs a strip instead of a paragraph of buttons. An icon
     button still needs an `aria-label` and a `title`: a drawing says nothing to a screen reader,
     and nothing to the person hovering it either.
+
+18. **The column menu wears the header band's colour, and opens beside its column.** Two things
+    a spreadsheet gets right and a first draft usually does not. Painted in the row colour, the
+    panel floats on the table with nothing marking where it begins; painted in the band's colour
+    it reads as an extension of the header it came from. And a menu that opens *over* its own
+    column hides the very values the filter is about — put it against the column's right edge,
+    flipping to the left when the viewport runs out, and keep its top under the header band.
 
 ## Traps that have already cost time
 

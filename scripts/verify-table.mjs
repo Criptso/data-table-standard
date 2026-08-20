@@ -583,6 +583,29 @@ else {
       return { td: getComputedStyle(td).verticalAlign, th: getComputedStyle(th).verticalAlign,
                thWrap: getComputedStyle(th).whiteSpace, thAlign: getComputedStyle(th).textAlign };
     });
+    /* Rule 18: the menu wears the header band's colour and opens BESIDE its column.
+       Opened over its own column, it hides exactly the values the filter is about — and
+       a menu the colour of the rows floats on them with nothing saying where it starts. */
+    const place = await page.evaluate(sel => {
+      const m = document.querySelector(sel);
+      const th = [...document.querySelectorAll(window.__S.head)]
+        .find(t => t.querySelector("[data-cmenu], .cmenu, [data-column-menu]") &&
+                   !m.hidden && t.textContent.trim() &&
+                   m.textContent.trim().startsWith(t.textContent.trim().split("\n")[0].trim()));
+      const r = m.getBoundingClientRect();
+      const head = document.querySelector(window.__S.head);
+      const norm = c => (c || "").replace(/\s/g, "");
+      return { menuBg: norm(getComputedStyle(m).backgroundColor),
+               headBg: norm(getComputedStyle(head).backgroundColor),
+               covers: th ? (r.left < th.getBoundingClientRect().right - 2 &&
+                             r.right > th.getBoundingClientRect().left + 2) : null };
+    }, SEL.menu);
+    place.menuBg === place.headBg
+      ? pass(18, "the menu wears the header band's colour", place.menuBg)
+      : fail(18, "the menu floats in the rows' own colour", `${place.menuBg} vs ${place.headBg}`);
+    if (place.covers === null) skip(18, "the menu opens beside its column", "column not identified");
+    else place.covers ? fail(18, "the menu opens over the column it belongs to")
+                      : pass(18, "the menu opens beside its column");
     vert.td === "middle" ? pass(17, "cells are vertically centred")
                          : fail(17, "cells are not vertically centred", vert.td);
     (vert.th === "middle" && vert.thWrap !== "nowrap" && vert.thAlign === "center")
