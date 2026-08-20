@@ -870,10 +870,23 @@ else {
   })()`);
   if (!dateCells.length) skip(14, "date formatting", "no date column detected");
   else {
-    const bad = dateCells.filter(c => !FMT.test(c.sample));
+    const bad = dateCells.filter(c => !FMT.test(c.day));
     bad.length === 0
       ? pass(14, "dates print as 'd Mmm YYYY'", dateCells.map(c => c.sample).join(", "))
       : fail(14, "dates are not in 'd Mmm YYYY'", bad.map(c => c.sample).join(", "));
+
+    /* rule 19 — a clock is welcome, but it must be SEPARATED. Glued to the year it is
+       what a checker parses, a screen reader announces and a copy-paste yields. */
+    const glued = dateCells.filter(c => c.glued);
+    const clocked = dateCells.filter(c => c.clocked);
+    if (glued.length)
+      fail(19, "the clock is glued to the year — put a real space between them, not only a <br>",
+           glued.map(c => `"${c.sample}"`).join(", "));
+    else if (clocked.length)
+      pass(19, "a dated column that carries a clock keeps them separable",
+           clocked.map(c => `"${c.sample}"`).join(", "));
+    else
+      skip(19, "the clock under the day", "no date column carries a time — nothing to judge");
     const invalid = await page.evaluate(() => document.querySelector(window.__S.table).textContent.includes("Invalid"));
     invalid ? fail(14, "a cell renders as Invalid Date") : pass(14, "nothing renders as Invalid Date");
     /* A missing date is EMPTY, never a dash: one "—" and the column stops reading as
