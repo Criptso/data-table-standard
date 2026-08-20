@@ -853,7 +853,11 @@ else {
       // "15 Aug 2026 11:35Z". Strip a trailing clock before judging the shape — a checker
       // that only knows the bare day stops SEEING such a column, and an unseen column is
       // skipped, which reads exactly like a passing one.
-      const clock = /[ \\u00a0]\\d{1,2}:\\d{2}(:\\d{2})?\\s*(Z|[A-Z]{2,5}|[+-]\\d{2}:?\\d{2})?$/;
+      // The separator is OPTIONAL here on purpose. Requiring it meant the glued form —
+      // the exact thing rule 19 forbids — stopped being recognised as a date at all, so
+      // the column SKIPPED instead of failing. A rule whose own violation makes it
+      // invisible is not a rule. Detect both shapes; the glued check below judges them.
+      const clock = /[ \\u00a0]?\\d{1,2}:\\d{2}(:\\d{2})?\\s*(Z|[A-Z]{2,5}|[+-]\\d{2}:?\\d{2})?$/;
       const day = v => v.replace(clock, "").trim();
       const written = v => /^\\d{1,2} \\p{L}{3,12}\\.? \\d{4}$/u.test(day(v));
       // a numeric date (19.08.2026) is a date column too, and it has to be DETECTED so it
