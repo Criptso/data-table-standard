@@ -30,7 +30,7 @@ config.json (every key optional; these are the defaults):
     "menu":       "#colFilterMenu, [role=menu], .column-menu",
     "colGrip":    ".rz, [data-col-resize]",
     "rowGrip":    ".rowrz, [data-row-resize]",
-    "search":     "input[type=search], input[placeholder*='search' i], input[placeholder*='contains' i]",
+    "search":     "input[data-search], input[type=search], input[placeholder*='search' i], input[placeholder*='contains' i]",
     "clear":      ".xclr, [data-clears], button[aria-label*='clear' i]",
     "addColumn":  "[data-add-column], #addColBtn",
     "newColumn":  "[data-newcol], input[placeholder*='new column' i]",
@@ -52,7 +52,8 @@ const SEL = {
   menuHandle: "[data-cmenu], .cmenu, [data-column-menu]",
   menu: "#colFilterMenu, [role=menu], .column-menu",
   colGrip: ".rz, [data-col-resize]", rowGrip: ".rowrz, [data-row-resize]",
-  search: "input[type=search], input[placeholder*='search' i], input[placeholder*='contains' i]",
+  // a hook, not an English word: a table written in Romanian still has to be checkable
+  search: "input[data-search], input[type=search], input[placeholder*='search' i], input[placeholder*='contains' i]",
   clear: ".xclr, [data-clears], button[aria-label*='clear' i]",
   addColumn: "[data-add-column], #addColBtn",
   newColumn: "[data-newcol], input[placeholder*='new column' i]",
@@ -177,7 +178,11 @@ const CONTRAST = `
     // and comparing against it would ask the header to out-shout the emphasis
     const each = [...tr.children].map(c => cr(getComputedStyle(c).color, bg)).sort((a, b) => a - b);
     const median = each[Math.floor(each.length / 2)];
+    const cellBg = getComputedStyle(tr.children[0]).backgroundColor;
+    const lum = c => { const m = c.match(/\\d+/g); if (!m) return null;
+                       const [r,g,b] = m.map(Number); return 0.2126*lin(r)+0.7152*lin(g)+0.0722*lin(b); };
     return { head: cr(ths.color, ths.backgroundColor), rows: median,
+             headLum: lum(ths.backgroundColor), rowLum: lum(cellBg) || lum(bg),
              sticky: ths.position, headBg: ths.backgroundColor, bodyBg: bg,
              weight: ths.fontWeight, align: ths.textAlign, transform: ths.textTransform };
   })()`);
@@ -186,9 +191,19 @@ const CONTRAST = `
     m.head >= 7
       ? pass(1, "header contrast", `${m.head.toFixed(2)}:1`)
       : fail(1, "header contrast below 7:1", `${m.head.toFixed(2)}:1`);
-    m.head > m.rows
-      ? pass(1, "header brighter than a typical row", `${m.head.toFixed(2)}:1 vs median ${m.rows.toFixed(2)}:1`)
-      : fail(1, "header dimmer than the rows it labels", `${m.head.toFixed(2)}:1 vs median ${m.rows.toFixed(2)}:1`);
+    /* Rule 16: the band is its own shade — measurably lighter (or darker) than the rows,
+       not merely "a different colour". A band that only clears 7:1 while sitting at the
+       row's own luminance reads as one more row on a dimmed monitor. The floor above and
+       this delta together replace the old "header must out-contrast the rows": once the
+       band is a light one, white text on it necessarily contrasts LESS, and asking for
+       both was asking for a band that could never be light. */
+    if (m.headLum == null || m.rowLum == null) skip(16, "band luminance", "colours not readable");
+    else {
+      const delta = Math.abs(m.headLum - m.rowLum) / Math.max(m.rowLum, 0.02);
+      delta >= 0.08
+        ? pass(16, "the header band is its own shade", `${Math.round(delta * 100)}% față de rânduri`)
+        : fail(16, "the header band melts into the rows", `${Math.round(delta * 100)}% — sub 8%`);
+    }
     const opaque = m.headBg !== m.bodyBg && !/rgba\(0, 0, 0, 0\)|transparent/.test(m.headBg);
     opaque ? pass(1, "header has its own background", m.headBg)
            : fail(1, "header has no background of its own", m.headBg);
@@ -545,6 +560,31 @@ else {
     inside.ticks > 0 ? pass(4, "menu lists values to tick", `${inside.ticks}`)
                      : say(4, "SKIP", "no value ticks", "date columns swap these for a range — see rule 11");
     inside.derive ? pass(4, "menu can derive a column") : fail(4, "menu cannot derive a column from another");
+    /* Rule 17: the menu is also where a column's text is placed. Horizontal alignment is a
+       choice (left / centre / right); vertical never is — cells are always centred; and the
+       wrap toggle decides between one line and several. None of it touches the header, which
+       is centred on both axes and always wraps. */
+    const placing = await page.evaluate(sel => {
+      const m = document.querySelector(sel);
+      const al = [...m.querySelectorAll("[data-align]")].map(b => b.getAttribute("data-align"));
+      return { al, wrap: !!m.querySelector("[data-wrap]") };
+    }, SEL.menu);
+    ["left", "center", "right"].every(v => placing.al.includes(v))
+      ? pass(17, "the menu aligns the column left / centre / right")
+      : gone(17, "no horizontal alignment in the column menu", placing.al.join(",") || "none");
+    placing.wrap ? pass(17, "the menu toggles wrapping") : gone(17, "no wrap toggle in the column menu");
+    const vert = await page.evaluate(() => {
+      const td = document.querySelector(window.__S.rows + " td");
+      const th = document.querySelector(window.__S.head);
+      return { td: getComputedStyle(td).verticalAlign, th: getComputedStyle(th).verticalAlign,
+               thWrap: getComputedStyle(th).whiteSpace, thAlign: getComputedStyle(th).textAlign };
+    });
+    vert.td === "middle" ? pass(17, "cells are vertically centred")
+                         : fail(17, "cells are not vertically centred", vert.td);
+    (vert.th === "middle" && vert.thWrap !== "nowrap" && vert.thAlign === "center")
+      ? pass(17, "the header stays centred on both axes and wraps")
+      : fail(17, "the header does not follow its own fixed placing",
+             `${vert.thAlign} / ${vert.th} / ${vert.thWrap}`);
     inside.fitsWindow ? pass(4, "the menu fits the window or scrolls")
                       : fail(4, "the menu overflows the window, hiding its own controls");
   }
