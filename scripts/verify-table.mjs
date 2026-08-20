@@ -783,7 +783,10 @@ else {
       // Date.parse only knows English month names, so a localised column would go
       // undetected — and an undetected column SKIPS its checks, which reads as clean
       const written = v => /^\\d{1,2} \\p{L}{3,12}\\.? \\d{4}$/u.test(v);
-      const readable = v => written(v) || (!Number.isNaN(Date.parse(v)) && /\\d{4}/.test(v));
+      // a numeric date (19.08.2026) is a date column too, and it has to be DETECTED so it
+      // can FAIL rule 14 — otherwise the worst format on the list is the one that skips
+      const numeric = v => /^\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4}$/.test(v);
+      const readable = v => written(v) || numeric(v) || (!Number.isNaN(Date.parse(v)) && /\\d{4}/.test(v));
       if (vals.length >= 2 && vals.every(readable))
         out.push({ i, sample: vals[0], dashes: cells.filter(dash), blanks: cells.filter(v => !v).length });
     }
