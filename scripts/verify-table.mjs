@@ -764,7 +764,11 @@ else {
 
 // ── 11 + 14. dates ─────────────────────────────────────────────────────────────────
 {
-  const FMT = /^\d{1,2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4}$/;
+  /* The shape is what rule 14 is about, not the language: a table written in Romanian
+     prints "19 aug 2026" and that is the same rule obeyed. The month has to be WRITTEN
+     (letters, 3+ of them), which is the whole point — it is what keeps 03/04 from being
+     read as the 3rd of April by one reader and the 4th of March by another. */
+  const FMT = /^\d{1,2} \p{L}{3,12}\.? \d{4}$/u;
   /* A date column is detected past its HOLES on purpose. Requiring every cell to
      parse meant a column with one dash in it stopped being a date column, and the
      dash check below — the whole reason the holes are collected — could never fire. */
@@ -776,7 +780,11 @@ else {
     for (let i = 0; i < n; i++) {
       const cells = rows.map(r => r.children[i]?.textContent.trim() ?? "");
       const vals = cells.filter(v => v && !dash(v));
-      if (vals.length >= 2 && vals.every(v => !Number.isNaN(Date.parse(v)) && /\\d{4}/.test(v)))
+      // Date.parse only knows English month names, so a localised column would go
+      // undetected — and an undetected column SKIPS its checks, which reads as clean
+      const written = v => /^\\d{1,2} \\p{L}{3,12}\\.? \\d{4}$/u.test(v);
+      const readable = v => written(v) || (!Number.isNaN(Date.parse(v)) && /\\d{4}/.test(v));
+      if (vals.length >= 2 && vals.every(readable))
         out.push({ i, sample: vals[0], dashes: cells.filter(dash), blanks: cells.filter(v => !v).length });
     }
     return out;

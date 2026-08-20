@@ -98,7 +98,13 @@ start — retrofitting persistence is the expensive half.
 14. **Dates display as "d Mmm YYYY"** — `4 Aug 2026`, `16 Aug 2026`, no leading zero — whatever
     the storage format is. Storage keeps its own shape; only the display is normalised. An
     unparseable date shows as it arrived, never as "Invalid Date", and range filtering works on
-    the stored value rather than the printed text.
+    the stored value rather than the printed text. **The month is written in the interface's own
+    language** — a Romanian table prints `19 aug 2026` and obeys this rule exactly as much as an
+    English one. What the rule fixes is the shape: day, month in letters, four-digit year. The
+    letters are the point, because `03/04/2026` is the 3rd of April to one reader and the 4th of
+    March to another, and a mixed-language interface is its own defect. Detection has to follow:
+    `Date.parse` only knows English months, so a check built on it silently SKIPS a localised
+    column — and a skipped check reads exactly like a passing one.
 15. **Numeric columns align right, in a monospaced face, with `tabular-nums`.** Digits then sit
     in the same column down the whole list, so two magnitudes are comparable at a glance instead
     of being read digit by digit — which is the entire reason a price column exists. Proportional
