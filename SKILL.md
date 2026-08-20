@@ -133,7 +133,11 @@ start — retrofitting persistence is the expensive half.
     axes, always wrapping (rule 2 makes it uppercase and bold, and a title that cannot wrap
     forces a column wider than its data ever needed). A numeric column starts right-aligned
     (rule 15) and a text column starts left-aligned; the menu is where that default is overridden,
-    and the choice persists with the rest of the layout (rule 6).
+    and the choice persists with the rest of the layout (rule 6). Draw the four as icons in the
+    spreadsheet idiom — the lines of a paragraph, ragged the way the button aligns them, and a
+    return arrow for wrap — so the row costs a strip instead of a paragraph of buttons. An icon
+    button still needs an `aria-label` and a `title`: a drawing says nothing to a screen reader,
+    and nothing to the person hovering it either.
 
 ## Traps that have already cost time
 
