@@ -126,6 +126,17 @@ const handleCols = () => page.evaluate(sel => {
 async function openMenu(k) {
   const hs = await page.$$(SEL.menuHandle);
   if (!hs[k]) return false;
+  /* Scroll the handle into view BEFORE clicking it. Rules 9 and 10 leave the table
+     scrolled sideways, and a frozen first column paints OVER whatever scrolls under
+     it — so a handle left off-screen is not merely out of sight, it is underneath
+     another cell. The click lands on the frozen column, this menu never opens, and
+     every later tick goes into the PREVIOUS column's menu: the run then reports a
+     broken value filter (rule 4) that is really just a mis-aimed click. */
+  await page.evaluate((sel, k) => {
+    const h = document.querySelectorAll(sel)[k];
+    (h?.closest("th") ?? h)?.scrollIntoView({ inline: "center", block: "nearest" });
+  }, SEL.menuHandle, k);
+  await sleep(120);
   await hs[k].click().catch(() => {});
   await sleep(260);
   return menuOpen();
