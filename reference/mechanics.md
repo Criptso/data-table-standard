@@ -37,6 +37,13 @@ tbody td:first-child{ position: sticky; left: 0; z-index: 2; background: var(--b
 the box. Row hover and selection must repaint the frozen cell too, or it stays the wrong colour
 while the rest of the row lights up.
 
+The frozen column paints over whatever scrolls under it, which is the point — and the trap for
+anything driving the table. A header control that is off-screen sideways is not merely out of
+sight, it is *underneath* the frozen column, so a click at its coordinates lands on the frozen
+cell instead. Scroll the header into view first (`scrollIntoView({inline: "center"})`), then
+click. Miss this and a mis-aimed click reads as a dead control: the menu silently fails to open
+and every later step drives the previous column's menu.
+
 ## Short columns keep their width, long text yields
 
 `width: 1%` asks an auto-layout table for the narrowest fit that still holds the content, which
