@@ -1,0 +1,24 @@
+import puppeteer from "puppeteer-core";
+const b = await puppeteer.launch({ executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", headless: "new", args: ["--no-sandbox"] });
+const p = await b.newPage();
+p.on("pageerror", e => console.log("PAGEERR", e.message));
+await p.setViewport({ width: 1200, height: 850 });
+await p.goto("http://127.0.0.1:5199/demo-tabel", { waitUntil: "networkidle2" });
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const rows = () => p.$$eval("tbody tr:not([data-empty])", r => r.length);
+// hide Cod then show it again through the panel
+const setVis = async (label, on) => { await p.evaluate((label, on) => { const box=[...document.querySelectorAll(".cols-panel input[type=checkbox]")].find(b => b.closest("label").textContent.trim().startsWith(label)); if (box.checked!==on) box.click(); }, label, on); await sleep(300); };
+await p.click("[data-columns-button]"); await sleep(300);
+await setVis("Cod", false); await setVis("Cod", true);
+await p.keyboard.press("Escape"); await sleep(200);
+const hs = await p.$$("[data-cmenu]");
+const labels = await p.$$eval("thead th", t => t.map(x => x.textContent.trim()));
+const k = labels.indexOf("Cod");
+console.log("labels", labels, "k", k, "rows", await rows());
+await p.evaluate(k => document.querySelectorAll("[data-cmenu]")[k].closest("th").scrollIntoView({inline:"center"}), k); await sleep(100);
+await hs[k].click(); await sleep(300);
+console.log("menu open", !!(await p.$(".column-menu")), "title", await p.$eval(".column-menu h3", h => h.textContent).catch(()=>"-"));
+const n = await p.$$eval(".column-menu input[type=checkbox]", b => b.length);
+await p.evaluate(() => { const bs=[...document.querySelectorAll(".column-menu input[type=checkbox]")].filter(b=>!/toate/i.test(b.getAttribute("aria-label")||"")); bs[0].click(); }); await sleep(300);
+console.log("ticks", n, "rows after tick", await rows());
+await b.close();
