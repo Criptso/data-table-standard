@@ -1,0 +1,22 @@
+import puppeteer from "puppeteer-core";
+const b = await puppeteer.launch({ executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", headless: "new", args: ["--no-sandbox"] });
+const p = await b.newPage();
+p.on("pageerror", e => console.log("PAGEERR", e.message));
+p.on("console", m => console.log("CONSOLE", m.text()));
+await p.setViewport({ width: 1200, height: 850 });
+await p.goto("http://127.0.0.1:5199/demo-tabel", { waitUntil: "networkidle2" });
+const order = () => p.$$eval("tbody tr", rs => rs.slice(0,3).map(r => r.children[0].textContent.trim().slice(0,20)));
+console.log("th style", await p.$eval("thead th", th => { const s = getComputedStyle(th); return [s.color, s.backgroundColor, s.textAlign, getComputedStyle(th.querySelector('.t')).color]; }));
+console.log("before", await order());
+await p.click("thead th"); await new Promise(r => setTimeout(r, 300));
+console.log("asc", await order(), await p.$eval("thead th", th => th.getAttribute("aria-sort")));
+await p.click("thead th"); await new Promise(r => setTimeout(r, 300));
+console.log("desc", await order(), await p.$eval("thead th", th => th.getAttribute("aria-sort")));
+// menu + escape
+await p.click("[data-cmenu]"); await new Promise(r => setTimeout(r, 300));
+const box = await p.$(".column-menu input[data-search]");
+await box.click({ clickCount: 3 }); await box.type("zzqx"); await new Promise(r => setTimeout(r, 500));
+console.log("rows after type", await p.$$eval("tbody tr:not([data-empty])", r => r.length), "active:", await p.evaluate(() => document.activeElement?.outerHTML.slice(0, 60)));
+await p.keyboard.press("Escape"); await new Promise(r => setTimeout(r, 500));
+console.log("menu open?", await p.$(".column-menu") !== null, "rows", await p.$$eval("tbody tr:not([data-empty])", r => r.length));
+await b.close();
