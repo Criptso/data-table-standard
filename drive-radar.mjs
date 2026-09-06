@@ -17,7 +17,7 @@ const p = await b.newPage();
 const errs = [];
 p.on("pageerror", e => errs.push(e.message));
 await p.setViewport({ width: 1440, height: 900, deviceScaleFactor: 1 });
-if (REDUCE) await p.emulateMediaFeatures([{ name: "prefers-reduced-motion", value: "reduce" }]);
+await p.emulateMediaFeatures([{ name: "prefers-reduced-motion", value: REDUCE ? "reduce" : "no-preference" }]);
 await p.goto(URL, { waitUntil: "networkidle2" });
 await sleep(1000);
 console.log(REDUCE ? "── prefers-reduced-motion: REDUCE ──" : "── prefers-reduced-motion: no-preference ──");
