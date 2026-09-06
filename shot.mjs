@@ -1,0 +1,12 @@
+import puppeteer from "puppeteer-core";
+const [url, out, w, h, theme, rm] = process.argv.slice(2);
+const b = await puppeteer.launch({ executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", headless: "new", args: ["--no-sandbox","--font-render-hinting=none"] });
+const p = await b.newPage();
+await p.setViewport({ width: +w, height: +h, deviceScaleFactor: 2 });
+if (theme && theme !== "system") await p.emulateMediaFeatures([{ name: "prefers-color-scheme", value: theme }]);
+if (rm === "reduce") await p.emulateMediaFeatures([{ name: "prefers-color-scheme", value: theme || "light" }, { name: "prefers-reduced-motion", value: "reduce" }]);
+await p.goto(url, { waitUntil: "networkidle2" });
+await new Promise(r => setTimeout(r, 1200));
+await p.screenshot({ path: out });
+console.log("shot", out);
+await b.close();
