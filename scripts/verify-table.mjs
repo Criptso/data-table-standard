@@ -882,9 +882,12 @@ else {
       // it hides the column that actually needed judging. Only these four shapes are dates.
       const iso = v => /^\\d{4}-\\d{2}-\\d{2}$/.test(v);
       const longform = v => /^\\p{L}{3,12}\\.? \\d{1,2},? \\d{4}$/u.test(v);
+      // Date.parse is a guard on THOSE TWO ONLY, never a detector of its own. It cannot
+      // see a Romanian month ("9 mai 2026" is NaN to it), so asking it about the written
+      // form would skip every localised column — the failure the comment above names.
       const readable = v =>
-        (written(v) || numeric(v) || iso(day(v)) || longform(day(v))) &&
-        !Number.isNaN(Date.parse(day(v).replace(/\\./g, "/")));
+        written(v) || numeric(v) ||
+        ((iso(day(v)) || longform(day(v))) && !Number.isNaN(Date.parse(day(v))));
       if (vals.length >= 2 && vals.every(readable))
         out.push({ i, sample: vals[0], day: day(vals[0]),
                    clocked: vals.filter(v => clock.test(v)).length,
