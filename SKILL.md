@@ -108,7 +108,13 @@ start — retrofitting persistence is the expensive half.
     letters are the point, because `03/04/2026` is the 3rd of April to one reader and the 4th of
     March to another, and a mixed-language interface is its own defect. Detection has to follow:
     `Date.parse` only knows English months, so a check built on it silently SKIPS a localised
-    column — and a skipped check reads exactly like a passing one.
+    column — and a skipped check reads exactly like a passing one. It errs the other way too:
+    `Date.parse` answers for a document code (`AAA-000001` comes back as 31 Dec 2000), so a
+    detector that leans on it judges a column of invoice numbers as a column of dates and fails
+    a table whose real date column was correct. A false FAIL blinds you the same way a false
+    PASS does — it hides the column that needed judging. Detect the four date SHAPES —
+    `9 aug 2026`, `09.08.2026`, `2026-08-16`, `July 7, 2023` — and let `Date.parse` guard only
+    the last two.
 15. **Numeric columns align right, in a monospaced face, with `tabular-nums`.** Digits then sit
     in the same column down the whole list, so two magnitudes are comparable at a glance instead
     of being read digit by digit — which is the entire reason a price column exists. Proportional
