@@ -874,7 +874,17 @@ else {
       // a numeric date (19.08.2026) is a date column too, and it has to be DETECTED so it
       // can FAIL rule 14 — otherwise the worst format on the list is the one that skips
       const numeric = v => /^\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4}$/.test(v);
-      const readable = v => written(v) || numeric(v) || (!Number.isNaN(Date.parse(day(v))) && /\\d{4}/.test(v));
+      // ISO and the long written form are dates too, and both have to be DETECTED so they
+      // can FAIL rule 14. What must NOT reach Date.parse is anything else: it accepts
+      // document codes — an invoice numbered "AAA-000001" comes back as 31 Dec 2000 — so a
+      // column of document numbers was judged as a column of dates, and rule 14 failed on a
+      // table whose real date column was correct. A false FAIL is as blind as a false PASS:
+      // it hides the column that actually needed judging. Only these four shapes are dates.
+      const iso = v => /^\\d{4}-\\d{2}-\\d{2}$/.test(v);
+      const longform = v => /^\\p{L}{3,12}\\.? \\d{1,2},? \\d{4}$/u.test(v);
+      const readable = v =>
+        (written(v) || numeric(v) || iso(day(v)) || longform(day(v))) &&
+        !Number.isNaN(Date.parse(day(v).replace(/\\./g, "/")));
       if (vals.length >= 2 && vals.every(readable))
         out.push({ i, sample: vals[0], day: day(vals[0]),
                    clocked: vals.filter(v => clock.test(v)).length,
