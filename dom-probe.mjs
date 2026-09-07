@@ -1,6 +1,7 @@
-import puppeteer from 'puppeteer';
+const puppeteer = await import('puppeteer-core').then(m => m.default ?? m);
+const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const url = process.argv[2], col = Number(process.argv[3]);
-const b = await puppeteer.launch({ headless: 'new' });
+const b = await puppeteer.launch({ executablePath: CHROME, headless: 'new' });
 const p = await b.newPage();
 await p.goto(url, { waitUntil: 'networkidle2' });
 await p.waitForSelector('tbody tr', { timeout: 15000 }).catch(() => {});
