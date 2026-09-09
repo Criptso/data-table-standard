@@ -88,7 +88,13 @@ start — retrofitting persistence is the expensive half.
     date, so the list is as long as the table and answers nothing. Offer periods (last 7 days /
     30 days / 3 months / 12 months) and an exact from/to on the browser's native date input. A
     period is just a "from" N days back with the end open, so it writes into the from box and
-    stays adjustable. "To" covers its whole day.
+    stays adjustable. "To" covers its whole day. **And the range can be undone in ONE move**:
+    a reset beside the section's title, findable by a hook (`data-range-reset`), which clears
+    BOTH ends and gives the rows back. A period button writes a range in one click, so taking it
+    back must cost one click too — emptying two date boxes by hand, in the right order, is not an
+    undo, and a filter the user cannot lift is a filter he stops trusting. Show it only once
+    there IS a range, so the strip stays quiet otherwise, and test the two halves apart exactly
+    as rule 12 demands of the search ✕: the boxes are empty AND the rows are back.
 12. **Every search box carries a ✕ inside its right edge**, and the box itself is findable by a
     hook — `type="search"` or `data-search` — never by an English word in its placeholder: a
     table written in another language is still a table that has to be checked., appearing only when there is text,

@@ -32,6 +32,7 @@ config.json (every key optional; these are the defaults):
     "rowGrip":    ".rowrz, [data-row-resize]",
     "search":     "input[data-search], input[type=search], input[placeholder*='search' i], input[placeholder*='contains' i]",
     "clear":      ".xclr, [data-clears], button[aria-label*='clear' i]",
+    "rangeReset": "[data-range-reset], [data-clears-range]",
     "addColumn":  "[data-add-column], #addColBtn",
     "newColumn":  "[data-newcol], input[placeholder*='new column' i]",
     "colRemove":  "[data-col-del], [data-column-remove]",
@@ -55,6 +56,7 @@ const SEL = {
   // a hook, not an English word: a table written in Romanian still has to be checkable
   search: "input[data-search], input[type=search], input[placeholder*='search' i], input[placeholder*='contains' i]",
   clear: ".xclr, [data-clears], button[aria-label*='clear' i]",
+  rangeReset: "[data-range-reset], [data-clears-range]",
   addColumn: "[data-add-column], #addColBtn",
   newColumn: "[data-newcol], input[placeholder*='new column' i]",
   colRemove: "[data-col-del], [data-column-remove]",
@@ -949,6 +951,47 @@ else {
                            : fail(11, "date column has no from/to range", `${range.dates} date inputs`);
           range.periods >= 2 ? pass(11, "date column offers quick periods", `${range.periods} buttons`)
                              : fail(11, "date column has no quick periods", `${range.periods} buttons`);
+
+          /* The range has to be liftable in ONE move. A period writes it in one click; taking it
+             back by emptying two boxes by hand is not an undo. Driven, not read: set a "from"
+             through the native setter (React ignores a plain value write), watch the rows drop,
+             then judge the reset by BOTH halves — the boxes empty AND the rows back. Setting the
+             date rather than clicking a period keeps this check language-agnostic. */
+          if (range.dates >= 2) {
+            const before = await rowCount();
+            const armed = await page.evaluate(sel => {
+              const box = document.querySelector(sel + " input[type=date]");
+              if (!box) return null;
+              const d = new Date(); d.setDate(d.getDate() - 3);
+              const v = d.toISOString().slice(0, 10);
+              const set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+              set.call(box, v);
+              box.dispatchEvent(new Event("input", { bubbles: true }));
+              box.dispatchEvent(new Event("change", { bubbles: true }));
+              return v;
+            }, SEL.menu);
+            await sleep(900);
+            const narrowed = await rowCount();
+            const reset = await page.$(SEL.rangeReset);
+            if (!reset) gone(11, "the date range cannot be undone in one move");
+            else if (narrowed === before)
+              skip(11, "the range reset gives the rows back",
+                   `a from of ${armed} hid nothing here — nothing to give back`);
+            else {
+              await reset.click();
+              await sleep(900);
+              const back = await rowCount();
+              const boxes = await page.evaluate(sel =>
+                [...document.querySelectorAll(sel + " input[type=date]")].map(i => i.value), SEL.menu);
+              boxes.every(v => v === "")
+                ? pass(11, "the range reset clears both ends")
+                : fail(11, "the range reset left a date behind", boxes.join(" / "));
+              back === before
+                ? pass(11, "the range reset gives the rows back", `${narrowed} → ${back} of ${before}`)
+                : fail(11, "the range reset blanked the boxes but kept the filter",
+                       `${before} → ${narrowed} → ${back}`);
+            }
+          }
         }
         await page.keyboard.press("Escape");
       }
