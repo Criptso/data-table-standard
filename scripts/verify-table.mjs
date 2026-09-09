@@ -794,9 +794,15 @@ else {
     else {
       const msg = await page.evaluate(sel => {
         const t = document.querySelector(sel);
-        const el = [...t.querySelectorAll("*")].find(e =>
-          /no (rows|records|results|matching)/i.test(e.textContent)
-          && getComputedStyle(e).display !== "none");
+        const seen = e => e && getComputedStyle(e).display !== "none" && e.textContent.trim();
+        /* The hook first, the English words second. Judging this message by the words in it made
+           the check blind to every table not written in English — a Romanian list saying
+           "Niciun rezultat pentru filtrele curente" was reported as a body emptied with nothing
+           saying why, which is the same false FAIL rule 14 describes for `Date.parse`. */
+        const hooked = [...t.querySelectorAll("[data-empty-kind='filtered'], [data-empty]")].find(seen);
+        const worded = [...t.querySelectorAll("*")].find(e =>
+          /no (rows|records|results|matching)/i.test(e.textContent) && seen(e));
+        const el = hooked || worded;
         return el ? el.textContent.replace(/\s+/g, " ").trim().slice(0, 60) : "";
       }, SEL.table);
       msg ? pass(4, "a table emptied by its filters says so", msg)
