@@ -971,21 +971,30 @@ else {
              date rather than clicking a period keeps this check language-agnostic. */
           if (range.dates >= 2) {
             const before = await rowCount();
+            /* Arm it the way a user does — a period button — and fall back to writing the "from"
+               through the native setter for a table that has no periods. */
+            const period = await page.$(SEL.menu + " button[data-period]");
+            if (period) { await period.click(); await sleep(900); }
             const armed = await page.evaluate(sel => {
               const box = document.querySelector(sel + " input[type=date]");
               if (!box) return null;
-              const d = new Date(); d.setDate(d.getDate() - 3);
-              const v = d.toISOString().slice(0, 10);
-              const set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
-              set.call(box, v);
-              box.dispatchEvent(new Event("input", { bubbles: true }));
-              box.dispatchEvent(new Event("change", { bubbles: true }));
-              return v;
+              if (!box.value) {
+                const d = new Date(); d.setDate(d.getDate() - 3);
+                const set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+                set.call(box, d.toISOString().slice(0, 10));
+                box.dispatchEvent(new Event("input", { bubbles: true }));
+                box.dispatchEvent(new Event("change", { bubbles: true }));
+              }
+              return box.value;
             }, SEL.menu);
             await sleep(900);
             const narrowed = await rowCount();
             const reset = await page.$(SEL.rangeReset);
-            if (!reset) gone(11, "the date range cannot be undone in one move");
+            /* A range that would not go in is not a missing reset — say which of the two it was,
+               or a check that armed nothing reports a control that exists as absent. */
+            if (!armed)
+              skip(11, "the range can be undone in one move", "no range would go into the from box — nothing to undo");
+            else if (!reset) gone(11, "the date range cannot be undone in one move");
             else if (narrowed === before)
               skip(11, "the range reset gives the rows back",
                    `a from of ${armed} hid nothing here — nothing to give back`);
