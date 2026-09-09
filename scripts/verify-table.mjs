@@ -974,7 +974,14 @@ else {
             /* Arm it the way a user does — a period button — and fall back to writing the "from"
                through the native setter for a table that has no periods. */
             const period = await page.$(SEL.menu + " button[data-period]");
-            if (period) { await period.click(); await sleep(900); }
+            if (period) {
+              await period.click();
+              await sleep(900);
+              /* Some tables re-render the panel when the filter lands, which detaches it. The
+                 range is still set — reopen the same handle rather than reading a dead panel and
+                 calling a live control missing. */
+              if (!(await page.$(SEL.menu))) { await h.click(); await sleep(400); }
+            }
             const armed = await page.evaluate(sel => {
               const box = document.querySelector(sel + " input[type=date]");
               if (!box) return null;
