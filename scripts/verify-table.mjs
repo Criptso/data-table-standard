@@ -943,7 +943,13 @@ else {
           const m = document.querySelector(sel);
           if (!m) return null;
           return { dates: m.querySelectorAll("input[type=date]").length,
-                   periods: [...m.querySelectorAll("button")].filter(b => /last|day|month|year/i.test(b.textContent)).length };
+                   /* Prefer the hook. Reading the period buttons by their English words was the
+                      same blindness rule 14 warns about for `Date.parse`: a Romanian table offering
+                      "Ultimele 30 de zile" reported ZERO periods and failed a control that was
+                      right there and working. The regex stays as the fallback for a table that
+                      carries no hook. */
+                   periods: m.querySelectorAll("button[data-period]").length ||
+                            [...m.querySelectorAll("button")].filter(b => /last|day|month|year/i.test(b.textContent)).length };
         }, SEL.menu);
         if (!range) fail(11, "the date column has no menu");
         else {

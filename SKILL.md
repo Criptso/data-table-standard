@@ -88,7 +88,10 @@ start — retrofitting persistence is the expensive half.
     date, so the list is as long as the table and answers nothing. Offer periods (last 7 days /
     30 days / 3 months / 12 months) and an exact from/to on the browser's native date input. A
     period is just a "from" N days back with the end open, so it writes into the from box and
-    stays adjustable. "To" covers its whole day. **And the range can be undone in ONE move**:
+    stays adjustable. "To" covers its whole day. Mark each period button with `data-period`, for
+    the reason rule 14 gives about `Date.parse`: a checker that recognises those buttons by their
+    English words reports ZERO periods on a Romanian table offering "Ultimele 30 de zile", and a
+    control judged missing reads exactly like a control that is missing. **And the range can be undone in ONE move**:
     a reset beside the section's title, findable by a hook (`data-range-reset`), which clears
     BOTH ends and gives the rows back. A period button writes a range in one click, so taking it
     back must cost one click too — emptying two date boxes by hand, in the right order, is not an
