@@ -28,6 +28,9 @@ console.log('opened', opened, JSON.stringify(info, null, 1));
 const el = await p.evaluateHandle(() => [...document.querySelectorAll('button, [role=button]')].find(b => /column|coloan/i.test(b.textContent) && !b.closest('table')));
 const h = el.asElement(); if (h) await h.click().catch(e => console.log('click err', e.message));
 await new Promise(r => setTimeout(r, 400));
-console.log('after click: addCol =', await p.evaluate(() => !!document.querySelector('[data-add-column]')),
-            '| menu still open =', await p.evaluate(() => !!document.querySelector('.column-menu')));
+console.log('after click 1: addCol =', await p.evaluate(() => !!document.querySelector('[data-add-column]')));
+if (h) await h.click().catch(e => console.log('click2 err', e.message));
+await new Promise(r => setTimeout(r, 400));
+console.log('after click 2: addCol =', await p.evaluate(() => !!document.querySelector('[data-add-column]')));
+console.log('btn html', await p.evaluate(() => { const b=[...document.querySelectorAll('button')].find(b=>/column/i.test(b.textContent)&&!b.closest('table')); return b.outerHTML.slice(0,200); }));
 await b.close();
