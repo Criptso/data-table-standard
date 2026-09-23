@@ -37,6 +37,7 @@ config.json (every key optional; these are the defaults):
     "newColumn":  "[data-newcol], input[placeholder*='new column' i]",
     "colRemove":  "[data-col-del], [data-column-remove]",
     "emptyRow":   "[data-empty], .tbl-empty, [data-empty-state]",
+    "actions":    "[data-col-role=actions]",   // the row-actions column: header AND cells
     "columnsBtn": null                  // auto: a button outside the table saying "columns"
   },
   "chrome": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -61,12 +62,17 @@ const SEL = {
   newColumn: "[data-newcol], input[placeholder*='new column' i]",
   colRemove: "[data-col-del], [data-column-remove]",
   emptyRow: "[data-empty], .tbl-empty, [data-empty-state]",
+  // rule 20: the row-actions column carries this on its header and on every cell. It has no
+  // menu, no sort and no drag, so the checks for those look past it instead of failing it.
+  actions: "[data-col-role=actions]",
   columnsBtn: null,
   ...(cfg.sel || {}),
 };
 const CHROME = cfg.chrome || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const VP = cfg.viewport || { width: 1200, height: 850 };
 const URL = argv[0];
+/** the headers that sort, drag and carry a menu — every one except the row-actions column */
+const DATA_HEAD = SEL.head.split(",").map(h => `${h.trim()}:not(${SEL.actions})`).join(", ");
 
 const results = [];
 const say = (rule, state, name, detail = "") => results.push({ rule, state, name, detail });
@@ -308,19 +314,19 @@ const CONTRAST = `
 if (await rowCount() < 2) skip(3, "sorting", "fewer than two rows");
 else {
   const before = await rowOrder();
-  await page.click(`${SEL.head}`);
+  await page.click(DATA_HEAD);
   await sleep(250);
   const asc = await rowOrder();
-  await page.click(`${SEL.head}`);
+  await page.click(DATA_HEAD);
   await sleep(250);
   const desc = await rowOrder();
   asc.join("|") !== desc.join("|")
     ? pass(3, "clicking a title reorders rows", `${asc[0]?.slice(0, 18)} ↔ ${desc[0]?.slice(0, 18)}`)
     : fail(3, "clicking a title changes nothing", "dead control");
-  const marked = await page.evaluate(() => {
-    const th = document.querySelector(window.__S.head);
+  const marked = await page.evaluate(sel => {
+    const th = document.querySelector(sel);
     return th.className !== "" || th.querySelector("span, svg, i") !== null;
-  });
+  }, DATA_HEAD);
   marked ? pass(3, "the sorted column is marked") : fail(3, "no visible sort indicator");
   void before;
 }
@@ -352,7 +358,9 @@ else {
     const doc = document.scrollingElement;
     const pageScrolls = doc.scrollHeight - doc.clientHeight > 4;
     const first = rows[0].children[0];
-    const other = rows[0].children[Math.min(2, rows[0].children.length - 1)];
+    // never the row-actions column: pinned right, it holds still on purpose (rule 20)
+    const movable = [...rows[0].children].filter(c => !c.matches(window.__S.actions));
+    const other = movable[Math.min(2, movable.length - 1)];
     sc.scrollLeft = 0; sc.scrollTop = 0;
     const h0 = th.getBoundingClientRect().top, f0 = first.getBoundingClientRect().x;
     const o0 = other.getBoundingClientRect().x, r0 = rows[0].getBoundingClientRect().top;
@@ -390,20 +398,20 @@ else {
 
 // ── 6. reorder by drag ─────────────────────────────────────────────────────────────
 {
-  const draggable = await page.$eval(SEL.head, th => th.draggable).catch(() => false);
+  const draggable = await page.$eval(DATA_HEAD, th => th.draggable).catch(() => false);
   if (!draggable) gone(6, "headers are not draggable");
   else {
-    const before = await page.$$eval(SEL.head, ts => ts.map(t => t.textContent.trim()));
-    await page.evaluate(() => {
-      const ths = [...document.querySelectorAll(window.__S.head)];
+    const before = await page.$$eval(DATA_HEAD, ts => ts.map(t => t.textContent.trim()));
+    await page.evaluate(sel => {
+      const ths = [...document.querySelectorAll(sel)];
       const dt = new DataTransfer();
       ths[2]?.dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: dt }));
       ths[0]?.dispatchEvent(new DragEvent("dragover", { bubbles: true, dataTransfer: dt }));
       ths[0]?.dispatchEvent(new DragEvent("drop", { bubbles: true, dataTransfer: dt }));
       ths[2]?.dispatchEvent(new DragEvent("dragend", { bubbles: true, dataTransfer: dt }));
-    });
+    }, DATA_HEAD);
     await sleep(250);
-    const after = await page.$$eval(SEL.head, ts => ts.map(t => t.textContent.trim()));
+    const after = await page.$$eval(DATA_HEAD, ts => ts.map(t => t.textContent.trim()));
     before[0] !== after[0]
       ? pass(6, "dragging a header reorders the columns", `${before[0]} → ${after[0]}`)
       : fail(6, "dragging a header changes nothing", "dead control");
@@ -413,7 +421,7 @@ else {
     else {
       await page.reload({ waitUntil: "networkidle2" });
       await page.waitForSelector(SEL.rows).catch(() => {});
-      const reloaded = await page.$$eval(SEL.head, ts => ts.map(t => t.textContent.trim()));
+      const reloaded = await page.$$eval(DATA_HEAD, ts => ts.map(t => t.textContent.trim()));
       reloaded[0] === after[0] ? pass(6, "the order survives a reload")
                                : fail(6, "the order is forgotten on reload", `${after[0]} → ${reloaded[0]}`);
       /* The SAME drag, reloaded straight away: a layout write held behind a debounce
@@ -422,22 +430,22 @@ else {
          inside the debounce window on purpose, which is where the write has to be
          flushed on `pagehide`/`visibilitychange` with a keepalive send. (Found
          because this verifier reloads inside that window itself.) */
-      const was = await page.$$eval(SEL.head, ts => ts.map(t => t.textContent.trim()));
-      await page.evaluate(() => {
-        const ths = [...document.querySelectorAll(window.__S.head)];
+      const was = await page.$$eval(DATA_HEAD, ts => ts.map(t => t.textContent.trim()));
+      await page.evaluate(sel => {
+        const ths = [...document.querySelectorAll(sel)];
         const dt = new DataTransfer();
         ths[2]?.dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: dt }));
         ths[0]?.dispatchEvent(new DragEvent("dragover", { bubbles: true, dataTransfer: dt }));
         ths[0]?.dispatchEvent(new DragEvent("drop", { bubbles: true, dataTransfer: dt }));
         ths[2]?.dispatchEvent(new DragEvent("dragend", { bubbles: true, dataTransfer: dt }));
-      });
+      }, DATA_HEAD);
       await sleep(60);                                  // a render, not a debounce
-      const moved = await page.$$eval(SEL.head, ts => ts.map(t => t.textContent.trim()));
+      const moved = await page.$$eval(DATA_HEAD, ts => ts.map(t => t.textContent.trim()));
       if (moved[0] === was[0]) skip(6, "a write inside the debounce window", "the second drag moved nothing");
       else {
         await page.reload({ waitUntil: "networkidle2" });
         await page.waitForSelector(SEL.rows).catch(() => {});
-        const back = await page.$$eval(SEL.head, ts => ts.map(t => t.textContent.trim()));
+        const back = await page.$$eval(DATA_HEAD, ts => ts.map(t => t.textContent.trim()));
         back[0] === moved[0]
           ? pass(6, "a layout write survives a reload inside the debounce window", `${moved[0]} first, 60ms later`)
           : fail(6, "a debounced layout write died with the document — flush it on "
@@ -1044,7 +1052,7 @@ else {
     await sleep(350);
     return has(SEL.addColumn);
   };
-  const headers = () => page.$$eval(SEL.head, ts => ts.map(t => t.textContent.trim()));
+  const headers = () => page.$$eval(DATA_HEAD, ts => ts.map(t => t.textContent.trim()));
   /** tick or untick a column by the word printed next to its box — stack-agnostic,
    *  where a `data-` hook per column key is not */
   const setVisible = (label, on) => page.evaluate((label, on, sel) => {
