@@ -3,7 +3,7 @@ name: data-table
 description: >-
   The house standard for any multi-column list, in any app and any stack: sticky high-contrast
   header, click-to-sort, a per-column menu (filter by value, search, date range, derived
-  columns), frozen first column, add-column that reaches the database, smart widths with
+  columns), frozen first column, row actions pinned right, add-column that reaches the database, smart widths with
   Excel-style wrap, a 3-line cap per cell with hover reveal, resizable rows and columns,
   right-aligned tabular figures, and one date format. Use BEFORE building or changing any table, grid, or list with more than one
   column — dashboards, admin screens, inventory, reports, invoices, anything with rows. Also
@@ -32,7 +32,7 @@ about to write `<table>`, a data grid, a `.map()` over rows, or reach for a grid
 read this first and plan the schema for custom fields and per-user column preferences from the
 start — retrofitting persistence is the expensive half.
 
-## The 19 rules
+## The 20 rules
 
 1. **Header band, and its contrast is measurable.** Distinct background, bold, tracked, sticky
    on scroll, with a clear separator from the rows. **Target ≥7:1 against its own background.**
@@ -180,6 +180,22 @@ start — retrofitting persistence is the expensive half.
     stops recognising the column the moment a clock joins it, and a column it cannot see is a
     column it SKIPS — which reads exactly like a column that passed.
 
+20. **Row actions are pinned to the right edge.** A list with a row-actions column — download,
+    send, edit, delete — keeps that column frozen at the right edge of the scroll box during
+    horizontal scroll, so the actions are always on screen: the mirror of rule 7. Put them at
+    the far end of a wide list without the pin and every action costs a sideways scroll, then
+    a scroll back to find the row it belonged to. The column has **no menu** (no circle — there
+    is nothing in it to filter or sort), takes no part in drag reordering, and appearing in the
+    Columns hide list is optional. It still has a **visible header label** — it may be quiet,
+    it may not be absent — and the band's contrast rules (1, 16) apply to that header like any
+    other. It stays pinned with row selection switched on too. Its sticky cells paint an
+    **opaque background**, or the rows scrolling under show through the buttons, and sit
+    **above the scrolled cells but below the sticky header corner**. Mark the header AND every
+    cell `data-col-role="actions"`: that is how a checker tells a column that deliberately has
+    no menu from one that forgot it — the same reason `data-period` and `data-empty-kind`
+    exist — and without it the column is judged as data and fails rules it was never meant to
+    meet.
+
 ## Traps that have already cost time
 
 Read these before writing the code; every one shipped at least once.
@@ -203,6 +219,13 @@ Read these before writing the code; every one shipped at least once.
   bounded height as well as `overflow: auto`, and drive **both planes at once, at several
   viewport widths**: a table that fits today starts scrolling the moment a derived column
   arrives, and reading the CSS will never tell you which box moved.
+- **A pinned column that is in place can still be underneath.** `position: sticky; right: 0`
+  puts the actions column on the edge, and a rect check calls it pinned — while a body cell
+  that is itself positioned (a frozen first column, a relative cell carrying a badge) paints
+  over it and takes the click. Give the sticky cells a background and a z-index above the
+  body, and the actions HEADER a z-index above its own cells, or the rows scrolled up under
+  the band slide over the corner. Test it by hitting the middle of an action cell, scrolled
+  fully left and fully right, not by reading the rect.
 - **A menu that re-renders closes itself.** If clicking inside the menu rebuilds its innerHTML,
   the clicked node is detached by the time the event reaches `document`, so an outside-click
   handler sees a click from nowhere and closes the menu. Every tick closed it. Stamp the event

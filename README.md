@@ -15,7 +15,8 @@ uppercase titles and a thin rule between columns. Click a title to sort. A circl
 title opens a menu that filters by value, searches the column by the word it *prints*, and
 derives a new column from this one and another; date columns swap the value list for periods and
 an exact range. The first column freezes as you scroll sideways, in the same box the header
-sticks to, and it follows the user's drag-and-drop order. Short values keep their width, long
+sticks to, and it follows the user's drag-and-drop order; a row-actions column freezes at the
+right edge the same way, above the rows scrolling under it. Short values keep their width, long
 text wraps and clamps at three lines with the rest on hover, and both rows and columns can be
 dragged to size. Figures sit right-aligned in tabular monospace. Hiding a column takes its sort
 and its filter with it, and a column the user made can be removed again. Every search box clears
