@@ -459,32 +459,35 @@ else {
       r.opaque ? pass(20, "action cells paint an opaque background", r.bg)
                : fail(20, "action cells are see-through — rows show through while scrolling", r.bg);
       const held = x => Math.abs(x.off) <= 1;
-      if (!(held(r.left) && held(r.right)))
-        fail(20, "the actions column scrolls away — not pinned right",
-             `${at}, off the edge by ${r.left.off}px (left) / ${r.right.off}px (right)`);
-      // a column that is off-screen is not also "painted over" — judge the z-order only once it holds
+      const pinned = held(r.left) && held(r.right);
+      pinned
+        ? pass(20, "actions stay on the right edge scrolled left and right", `${at}, ${r.hx}px of overflow`)
+        : fail(20, "the actions column scrolls away — not pinned right",
+               `${at}, off the edge by ${r.left.off}px (left) / ${r.right.off}px (right)`);
+      /* A column that is off-screen is not ALSO "painted over": judging the z-order of a
+         column that never held would pile three failures onto one cause. */
+      if (!pinned) skip(20, "z-order and row selection", "the column is not pinned — fix that first");
       else {
-      pass(20, "actions stay on the right edge scrolled left and right", `${at}, ${r.hx}px of overflow`);
-      r.left.hit && r.right.hit
-        ? pass(20, "the action cells are on top and clickable")
-        : fail(20, "another column paints over the action cells",
-               `a click lands on "${r.left.hit ? r.right.got : r.left.got}"`);
-      if (r.corner === undefined) skip(20, "actions header above the rows", `${at} nothing to scroll down`);
-      else r.corner ? pass(20, "rows pass under the actions header")
-                    : fail(20, "a row paints over the actions header — the corner z-order is wrong");
-      /* With a row selected: selection often adds a class or a column, and either can knock
-         a sticky cell loose. Driven only when the rows carry a checkbox to tick. */
-      const tick = await page.$(scoped(SEL.rows, "input[type=checkbox]"));
-      if (!tick) skip(20, "pinned with a row selected", "no row selection on this table");
-      else {
-        await tick.click(); await sleep(250);
-        const s2 = await probe();
-        await tick.click(); await sleep(150);
-        held(s2.left) && held(s2.right) && s2.left.hit && s2.right.hit
-          ? pass(20, "still pinned with a row selected")
-          : fail(20, "selecting a row knocks the actions column loose",
-                 `off ${s2.left.off} / ${s2.right.off}px, hit ${s2.left.hit}/${s2.right.hit}`);
-      }
+        r.left.hit && r.right.hit
+          ? pass(20, "the action cells are on top and clickable")
+          : fail(20, "another column paints over the action cells",
+                 `a click lands on "${r.left.hit ? r.right.got : r.left.got}"`);
+        if (r.corner === undefined) skip(20, "actions header above the rows", `${at} nothing to scroll down`);
+        else r.corner ? pass(20, "rows pass under the actions header")
+                      : fail(20, "a row paints over the actions header — the corner z-order is wrong");
+        /* With a row selected: selection often adds a class or a column, and either can
+           knock a sticky cell loose. Driven only when the rows carry a checkbox to tick. */
+        const tick = await page.$(scoped(SEL.rows, "input[type=checkbox]"));
+        if (!tick) skip(20, "pinned with a row selected", "no row selection on this table");
+        else {
+          await tick.click(); await sleep(250);
+          const s2 = await probe();
+          await tick.click(); await sleep(150);
+          held(s2.left) && held(s2.right) && s2.left.hit && s2.right.hit
+            ? pass(20, "still pinned with a row selected")
+            : fail(20, "selecting a row knocks the actions column loose",
+                   `off ${s2.left.off} / ${s2.right.off}px, hit ${s2.left.hit}/${s2.right.hit}`);
+        }
       }
     }
   }
