@@ -459,10 +459,12 @@ else {
       r.opaque ? pass(20, "action cells paint an opaque background", r.bg)
                : fail(20, "action cells are see-through — rows show through while scrolling", r.bg);
       const held = x => Math.abs(x.off) <= 1;
-      held(r.left) && held(r.right)
-        ? pass(20, "actions stay on the right edge scrolled left and right", `${at}, ${r.hx}px of overflow`)
-        : fail(20, "the actions column scrolls away — not pinned right",
-               `${at}, off the edge by ${r.left.off}px (left) / ${r.right.off}px (right)`);
+      if (!(held(r.left) && held(r.right)))
+        fail(20, "the actions column scrolls away — not pinned right",
+             `${at}, off the edge by ${r.left.off}px (left) / ${r.right.off}px (right)`);
+      // a column that is off-screen is not also "painted over" — judge the z-order only once it holds
+      else {
+      pass(20, "actions stay on the right edge scrolled left and right", `${at}, ${r.hx}px of overflow`);
       r.left.hit && r.right.hit
         ? pass(20, "the action cells are on top and clickable")
         : fail(20, "another column paints over the action cells",
@@ -482,6 +484,7 @@ else {
           ? pass(20, "still pinned with a row selected")
           : fail(20, "selecting a row knocks the actions column loose",
                  `off ${s2.left.off} / ${s2.right.off}px, hit ${s2.left.hit}/${s2.right.hit}`);
+      }
       }
     }
   }
