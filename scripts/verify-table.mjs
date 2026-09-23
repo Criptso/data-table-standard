@@ -396,6 +396,99 @@ else {
   await sleep(200);
 }
 
+// ── 20. the row-actions column is pinned to the right edge ─────────────────────────
+{
+  /* The mirror of rule 7, driven the same way: scroll the box fully left and fully right
+     and the actions column must sit on the box's right edge in BOTH, and a point in the
+     middle of an action cell must land on that cell — a sticky cell with no z-index or no
+     background is geometrically in place and still painted under the columns scrolling
+     past it, which a rect check alone calls pinned. */
+  const probe = () => page.evaluate(`(() => { ${CONTRAST}
+    const A = window.__S.actions;
+    const th = [...document.querySelectorAll(window.__S.head)].find(t => t.matches(A));
+    if (!th) return { none: true };
+    const s = getComputedStyle(th);
+    const out = { label: th.textContent.trim(), hidden: s.visibility === "hidden" || parseFloat(s.fontSize) < 6,
+                  handle: !!th.querySelector(window.__S.menuHandle),
+                  contrast: cr(s.color, s.backgroundColor) };
+    const table = document.querySelector(window.__S.table);
+    let sc = window.__S.scroller ? document.querySelector(window.__S.scroller) : table?.parentElement;
+    while (!window.__S.scroller && sc && sc !== document.body
+           && sc.scrollWidth <= sc.clientWidth && sc.scrollHeight <= sc.clientHeight) sc = sc.parentElement;
+    const td = ${DATA_ROWS}.map(r => [...r.children].find(c => c.matches(A))).find(Boolean);
+    if (!sc || !td) return { ...out, noCells: !td };
+    const bg = getComputedStyle(td).backgroundColor, alpha = bg.match(/rgba\\(.*,\\s*([\\d.]+)\\)/);
+    out.bg = bg; out.opaque = bg !== "transparent" && !(alpha && Number(alpha[1]) < 1);
+    out.hx = sc.scrollWidth - sc.clientWidth; out.vy = sc.scrollHeight - sc.clientHeight;
+    const edge = () => { const r = sc.getBoundingClientRect(); return r.left + sc.clientLeft + sc.clientWidth; };
+    const at = x => {
+      sc.scrollTop = 0; sc.scrollLeft = x;
+      const a = td.getBoundingClientRect();
+      const hit = document.elementFromPoint(a.left + a.width / 2, a.top + a.height / 2);
+      return { off: Math.round((a.right - edge()) * 10) / 10, hit: hit?.closest("td, th") === td,
+               got: hit?.closest("td, th")?.textContent.trim().slice(0, 20) ?? "nothing" };
+    };
+    out.left = at(0); out.right = at(out.hx);
+    // the corner: rows scrolled up under the band must pass BELOW the actions header
+    if (out.vy > 0) {
+      sc.scrollLeft = 0; sc.scrollTop = Math.min(out.vy, 60);
+      const h = th.getBoundingClientRect();
+      out.corner = document.elementFromPoint(h.left + h.width / 2, h.top + h.height / 2)?.closest("td, th") === th;
+    }
+    sc.scrollLeft = 0; sc.scrollTop = 0;
+    return out;
+  })()`);
+  let r = null, at = "";
+  for (const width of [VP.width, 640]) {
+    await page.setViewport({ width, height: 420 });
+    await sleep(220);
+    r = await probe(); at = `at ${width}px`;
+    if (r.none || r.noCells || r.hx > 0) break;
+  }
+  if (r.none) skip(20, "row actions pinned right", `no header marked ${SEL.actions} — no actions column`);
+  else {
+    r.label && !r.hidden ? pass(20, "the actions column has a visible header label", r.label)
+                         : fail(20, "the actions column has no visible header label", r.label || "empty");
+    r.handle ? fail(20, "the actions column carries a column menu — it has nothing to filter")
+             : pass(20, "the actions column has no column menu");
+    r.contrast >= 7 ? pass(20, "actions header contrast", `${r.contrast.toFixed(2)}:1`)
+                    : fail(20, "actions header contrast below 7:1", `${r.contrast.toFixed(2)}:1`);
+    if (r.noCells) gone(20, `no row cell marked ${SEL.actions} — mark the cells as well as the header`);
+    else if (!r.hx) skip(20, "actions pinned right", `${at} the table still fits — nothing to scroll sideways`);
+    else {
+      r.opaque ? pass(20, "action cells paint an opaque background", r.bg)
+               : fail(20, "action cells are see-through — rows show through while scrolling", r.bg);
+      const held = x => Math.abs(x.off) <= 1;
+      held(r.left) && held(r.right)
+        ? pass(20, "actions stay on the right edge scrolled left and right", `${at}, ${r.hx}px of overflow`)
+        : fail(20, "the actions column scrolls away — not pinned right",
+               `${at}, off the edge by ${r.left.off}px (left) / ${r.right.off}px (right)`);
+      r.left.hit && r.right.hit
+        ? pass(20, "the action cells are on top and clickable")
+        : fail(20, "another column paints over the action cells",
+               `a click lands on "${r.left.hit ? r.right.got : r.left.got}"`);
+      if (r.corner === undefined) skip(20, "actions header above the rows", `${at} nothing to scroll down`);
+      else r.corner ? pass(20, "rows pass under the actions header")
+                    : fail(20, "a row paints over the actions header — the corner z-order is wrong");
+      /* With a row selected: selection often adds a class or a column, and either can knock
+         a sticky cell loose. Driven only when the rows carry a checkbox to tick. */
+      const tick = await page.$(scoped(SEL.rows, "input[type=checkbox]"));
+      if (!tick) skip(20, "pinned with a row selected", "no row selection on this table");
+      else {
+        await tick.click(); await sleep(250);
+        const s2 = await probe();
+        await tick.click(); await sleep(150);
+        held(s2.left) && held(s2.right) && s2.left.hit && s2.right.hit
+          ? pass(20, "still pinned with a row selected")
+          : fail(20, "selecting a row knocks the actions column loose",
+                 `off ${s2.left.off} / ${s2.right.off}px, hit ${s2.left.hit}/${s2.right.hit}`);
+      }
+    }
+  }
+  await page.setViewport(VP);
+  await sleep(200);
+}
+
 // ── 6. reorder by drag ─────────────────────────────────────────────────────────────
 {
   const draggable = await page.$eval(DATA_HEAD, th => th.draggable).catch(() => false);
@@ -1052,7 +1145,7 @@ else {
     await sleep(350);
     return has(SEL.addColumn);
   };
-  const headers = () => page.$$eval(DATA_HEAD, ts => ts.map(t => t.textContent.trim()));
+  const headers = () => page.$$eval(SEL.head, ts => ts.map(t => t.textContent.trim()));
   /** tick or untick a column by the word printed next to its box — stack-agnostic,
    *  where a `data-` hook per column key is not */
   const setVisible = (label, on) => page.evaluate((label, on, sel) => {
@@ -1084,10 +1177,10 @@ else {
     const spread = await page.evaluate(`(() => {
       const rows = ${DATA_ROWS};
       return [...document.querySelectorAll(window.__S.head)].map((th, i) => ({
-        label: th.textContent.trim(), i,
+        label: th.textContent.trim(), i, act: th.matches(window.__S.actions),
         n: new Set(rows.map(r => (r.children[i]?.textContent || "").trim())).size }));
     })()`);
-    const witness = spread.filter(c => c.label && c.label !== victim?.label)
+    const witness = spread.filter(c => c.label && !c.act && c.label !== victim?.label)
                           .sort((a, b) => b.n - a.n)[0];
     const sigOf = async () => {
       const c = (await headers()).indexOf(witness.label);
