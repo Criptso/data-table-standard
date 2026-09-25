@@ -18,7 +18,7 @@ an exact range. The first column freezes as you scroll sideways, in the same box
 sticks to, and it follows the user's drag-and-drop order; a row-actions column freezes at the
 right edge the same way, above the rows scrolling under it. Short values keep their width, long
 text wraps and clamps at three lines with the rest on hover, and both rows and columns can be
-dragged to size. Figures sit right-aligned in tabular monospace. Hiding a column takes its sort
+dragged to size. The column that orders the list carries a coloured bar under its title, and every search box a magnifier on its left. Values sit centred in their cells both ways; figures sit right-aligned in tabular monospace, and long text that wraps stays flush left. Hiding a column takes its sort
 and its filter with it, and a column the user made can be removed again. Every search box clears
 in one click, and a table its filters have emptied says so. Dates always read `16 Aug 2026`.
 

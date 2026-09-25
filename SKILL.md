@@ -5,7 +5,7 @@ description: >-
   header, click-to-sort, a per-column menu (filter by value, search, date range, derived
   columns), frozen first column, row actions pinned right, add-column that reaches the database, smart widths with
   Excel-style wrap, a 3-line cap per cell with hover reveal, resizable rows and columns,
-  right-aligned tabular figures, and one date format. Use BEFORE building or changing any table, grid, or list with more than one
+  centred cells with right-aligned tabular figures, a bar on the sorted column, and one date format. Use BEFORE building or changing any table, grid, or list with more than one
   column — dashboards, admin screens, inventory, reports, invoices, anything with rows. Also
   use when a table already exists and is being reviewed, extended, or restyled, and whenever
   someone says the list should behave "like Excel" or "like Sheets". Ships a browser-driven
@@ -32,7 +32,7 @@ about to write `<table>`, a data grid, a `.map()` over rows, or reach for a grid
 read this first and plan the schema for custom fields and per-user column preferences from the
 start — retrofitting persistence is the expensive half.
 
-## The 20 rules
+## The 22 rules
 
 1. **Header band, and its contrast is measurable.** Distinct background, bold, tracked, sticky
    on scroll, with a clear separator from the rows. **Target ≥7:1 against its own background.**
@@ -150,7 +150,8 @@ start — retrofitting persistence is the expensive half.
     mixed-height cells. **None of it applies to the header**, which is fixed: centred on both
     axes, always wrapping (rule 2 makes it uppercase and bold, and a title that cannot wrap
     forces a column wider than its data ever needed). A numeric column starts right-aligned
-    (rule 15) and a text column starts left-aligned; the menu is where that default is overridden,
+    (rule 15), a column of wrapping text starts left-aligned and every other column starts
+    centred (rule 22); the menu is where that default is overridden,
     and the choice persists with the rest of the layout (rule 6). Draw the four as icons in the
     spreadsheet idiom — the lines of a paragraph, ragged the way the button aligns them, and a
     return arrow for wrap — so the row costs a strip instead of a paragraph of buttons. An icon
@@ -195,6 +196,34 @@ start — retrofitting persistence is the expensive half.
     no menu from one that forgot it — the same reason `data-period` and `data-empty-kind`
     exist — and without it the column is judged as data and fails rules it was never meant to
     meet.
+
+21. **The sorted column carries a bar, and every search box carries a magnifier.** The arrow
+    alone is a few pixels beside the title, and on a dimmed screen a list sorted by one column
+    reads exactly like a list sorted by none. So the column that orders the list also gets a
+    **coloured bar under its title** — a stroke on the band itself, 2px is plenty, in the
+    product's accent — and only that column: a stroke every header carries is the band's own
+    rule, not a mark. Put `aria-sort` on that header too; it is what a screen reader announces
+    and what a checker finds. And **every table search box shows a magnifier inside its left
+    edge**, with the text padded clear of it, so the box says what it is before anyone types:
+    an empty input is a form field until it has an icon. The ✕ of rule 12 sits on the right
+    edge, the magnifier on the left, and the text between them overlaps neither. That includes
+    the search box inside the column menu.
+
+22. **Cells are centred — both ways — unless the value says otherwise.** A row of short values
+    (names, statuses, dates, codes) reads as a row when each value sits in the middle of its
+    column; flushed left, the eye has to jump the gap every column leaves on its right. So the
+    default is **centred horizontally and vertically**. Two exceptions, and they are the
+    reasons they exist: **figures and money stay right-aligned** with tabular figures (rule 15),
+    because digits must line up by place value to be compared; and **long text that wraps onto
+    several lines stays left-aligned**, because a centred paragraph has a ragged edge on both
+    sides and nowhere for the eye to return to. Decide it per COLUMN, not per cell — a short
+    note in a column of paragraphs sits on the same left edge as its neighbours — and reuse what
+    the table already knows about a column (its numeric declaration, its wrap decision) rather
+    than keeping a second list of exceptions. The column menu can still override it (rule 17).
+    Check it by measuring where the content PAINTS, not by reading `text-align`: a centred cell
+    holding a full-width flex box paints its content flush left while every computed style on
+    the cell says centre. And a figure is a figure in every locale — `97,6 s`, `1.234,56` and
+    `12 500` are numbers, and a detector that only knows the decimal dot SKIPS those columns.
 
 ## Traps that have already cost time
 
