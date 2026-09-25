@@ -263,27 +263,48 @@ const CONTRAST = `
   }
 }
 
+/* ── what counts as a figure, shared by rules 15 and 22 ──────────────────────────────
+   Real functions, injected into the page by their source text (so they can be run in
+   Node too). Localised figures are the point: "97,6 s", "1.234,56 lei" and "12 500"
+   are numbers to a reader of a comma-decimal locale, and a detector that only knew the
+   dot SKIPPED those columns — and a skipped check reads exactly like a passing one. */
+function parseNum(s) {
+  let t = String(s).trim()
+    .replace(/^[€$£¥]\s*/u, "")                          // a leading currency: "€ 12"
+    .replace(/\s*[\p{L}%€$£¥]{1,4}\.?$/u, "")            // a trailing unit: "12.40 EUR", "97,6 s"
+    .replace(/[\s   ]/g, "")               // thousands by space, NBSP, thin space
+    .replace(/^−/, "-");
+  if (!/^[+-]?\d[\d.,]*$/.test(t) || /[.,]$/.test(t)) return null;
+  const dot = t.lastIndexOf("."), comma = t.lastIndexOf(",");
+  if (dot >= 0 && comma >= 0)                             // both: the LAST one is the decimal mark
+    t = dot > comma ? t.replace(/,/g, "") : t.replace(/\./g, "").replace(",", ".");
+  else if (comma >= 0)                                    // "1,234,567" thousands; "97,6" a decimal
+    t = /^[+-]?\d{1,3}(,\d{3}){2,}$/.test(t) ? t.replace(/,/g, "") : t.replace(",", ".");
+  else if ((t.match(/\./g) || []).length > 1)             // "1.234.567" — dots as thousands,
+    t = /^[+-]?\d{1,3}(\.\d{3})+$/.test(t) ? t.replace(/\./g, "") : "";  // "09.08.2026" a date
+  return /^[+-]?\d+(\.\d+)?$/.test(t) ? Number(t) : null;
+}
+/** a MAGNITUDE, not an identifier: an id is a run of digits too, and nobody compares two
+ *  of them by size. A sign, a decimal mark or a thousands group is the tell. */
+function isFigure(s) {
+  return parseNum(s) !== null && /[.,−+-]|\d[\s  ]\d{3}(?!\d)/.test(String(s));
+}
+const NUM = `${parseNum}\n${isFigure}\n`;
+
 // ── 15. figures right-aligned, monospaced, tabular ─────────────────────────────────
 {
-  const n = await page.evaluate(`(() => {
+  const n = await page.evaluate(`(() => { ${NUM}
     const rows = ${DATA_ROWS};
     if (rows.length < 2) return null;
     const ths = [...document.querySelectorAll(window.__S.head)];
     // a column of dates is not a column of figures, and "—" is a hole rather than
     // a value: neither may decide whether a column is numeric
     const hole = s => !s || /^(—|–|-|n\\/a)$/i.test(s);
-    const num = s => {
-      const bare = s.replace(/\\s+[\\p{L}%€$£¥]{1,4}$/u, "")   // a trailing unit: "12.40 EUR"
-                    .replace(/[\\s,\\u00a0]/g, "");
-      return /^[+\\-\\u2212]?\\d+(\\.\\d+)?$/.test(bare);
-    };
     const out = [];
     for (let i = 0; i < (rows[0].children.length); i++) {
       const cells = rows.map(r => r.children[i]).filter(Boolean);
       const vals = cells.map(c => c.textContent.trim()).filter(s => !hole(s));
-      // a MAGNITUDE, not an identifier: an id is a run of digits too, and nobody
-      // compares two of them by size. A sign or a decimal point is the tell.
-      if (vals.length < 2 || !vals.every(num) || !vals.some(s => /[.\\u2212+-]/.test(s))) continue;
+      if (vals.length < 2 || !vals.every(v => parseNum(v) !== null) || !vals.some(isFigure)) continue;
       const c = cells.find(c => !hole(c.textContent.trim()));
       const s = getComputedStyle(c);
       out.push({ label: (ths[i]?.textContent || "#" + i).trim(),
