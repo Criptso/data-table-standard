@@ -5,7 +5,7 @@ description: >-
   header, click-to-sort, a per-column menu (filter by value, search, date range, derived
   columns), frozen first column, row actions pinned right, add-column that reaches the database, smart widths with
   Excel-style wrap, a 3-line cap per cell with hover reveal, resizable rows and columns,
-  centred cells with right-aligned tabular figures, a bar on the sorted column, and one date format. Use BEFORE building or changing any table, grid, or list with more than one
+  centred cells with right-aligned tabular figures, a bar on the sorted column, the table and its pager as one card, and one date format. Use BEFORE building or changing any table, grid, or list with more than one
   column — dashboards, admin screens, inventory, reports, invoices, anything with rows. Also
   use when a table already exists and is being reviewed, extended, or restyled, and whenever
   someone says the list should behave "like Excel" or "like Sheets". Ships a browser-driven
@@ -32,7 +32,7 @@ about to write `<table>`, a data grid, a `.map()` over rows, or reach for a grid
 read this first and plan the schema for custom fields and per-user column preferences from the
 start — retrofitting persistence is the expensive half.
 
-## The 22 rules
+## The 23 rules
 
 1. **Header band, and its contrast is measurable.** Distinct background, bold, tracked, sticky
    on scroll, with a clear separator from the rows. **Target ≥7:1 against its own background.**
@@ -224,6 +224,22 @@ start — retrofitting persistence is the expensive half.
     holding a full-width flex box paints its content flush left while every computed style on
     the cell says centre. And a figure is a figure in every locale — `97,6 s`, `1.234,56` and
     `12 500` are numbers, and a detector that only knows the decimal dot SKIPS those columns.
+
+23. **The table sits on the card surface, as ONE card with its footer.** Rows painted in the
+    page's own colour have no edge: the table dissolves into the canvas and the eye cannot tell
+    where the data starts. So the body uses **the same surface as the app's cards** — white on
+    a light-grey page, the card colour in a dark theme — with **the cards' border and radius**,
+    taken from the product's own tokens rather than a colour typed into the table. The result
+    count and the pager belong **inside that card**, under the rows: a footer floating below a
+    closed box reads as the start of something else. Three things must survive the move. The
+    **header band keeps its own shade** against the new surface (rules 1 and 16) — on a light
+    card it is the darker of the two, since a white band on white rows has lost its header. A
+    **hovered or highlighted row** must still show on the card; a hover tint mixed toward the
+    old page colour can vanish on white. And **frozen cells** (rules 7 and 20) paint the card
+    colour, not the page's, or the frozen column turns into a grey stripe. Measure the step as
+    ΔL* between the row surface and what the card stands on: 2 is enough when a border and a
+    radius carry the rest — that is the step a white card takes on a near-white canvas — and 0
+    is a table with no surface at all.
 
 ## Traps that have already cost time
 
