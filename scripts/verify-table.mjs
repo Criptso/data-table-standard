@@ -377,8 +377,13 @@ const NUM = `${parseNum}\n${isFigure}\n`;
           const rg = document.createRange(); rg.selectNodeContents(n);
           for (const q of rg.getClientRects()) if (q.width > 0) { rects.push(q); tops.add(Math.round(q.top)); }
         }
-        for (const e of td.querySelectorAll("svg, img, input, [role=img]"))
-          if (!floats(e)) { const q = e.getBoundingClientRect(); if (q.width > 0) rects.push(q); }
+        /* a badge or chip paints its own box — its padding is content to the eye, so the box
+           counts, not only the text inside it (else a pill's left padding reads as a gap) */
+        const paints = e => { const s = getComputedStyle(e);
+          return !/rgba\\(\\d+, \\d+, \\d+, 0\\)|transparent/.test(s.backgroundColor) || parseFloat(s.borderLeftWidth) > 0; };
+        for (const e of td.querySelectorAll("*"))
+          if (!floats(e) && (e.matches("svg, img, input, [role=img]") || (e.textContent.trim() && paints(e)))) {
+            const q = e.getBoundingClientRect(); if (q.width > 0 && q.width < tr.width) rects.push(q); }
         for (const e of [td, ...td.querySelectorAll("*")])
           if (!floats(e) && e.clientHeight > 0 && e.textContent.trim() &&
               (e.scrollHeight > e.clientHeight + 1 || e.scrollWidth > e.clientWidth + 1)) clipped = true;
