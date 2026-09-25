@@ -399,11 +399,30 @@ const NUM = `${parseNum}\n${isFigure}\n`;
           const ta = /flex|grid/.test(ts.display) ? ts.justifyContent : hs.textAlign;
           horiz = /center/.test(ta) ? "center" : /right|end/.test(ta) ? "right" : "left";
         }
+        /* A stacked cell (a title over a button, a pill over a caption) can be centred as a box
+           while its lines hug the box's left edge: the union looks centred, the eye sees a ragged
+           left column. So a centred cell is judged line by line too — outermost boxes only (a
+           pill's own icon and text are the pill), grouped into lines by vertical overlap. */
+        let ragged = "";
+        if (horiz === "center" && !wraps) {
+          const outer = rects.filter(q => !rects.some(o => o !== q && o.left <= q.left + 0.5 && o.right >= q.right - 0.5
+                                                          && o.top <= q.top + 0.5 && o.bottom >= q.bottom - 0.5));
+          const lines = [];
+          for (const q of [...outer].sort((a, b) => a.top - b.top)) {
+            const mid = (q.top + q.bottom) / 2, line = lines.find(l => mid >= l.t && mid <= l.b);
+            if (line) { line.l = Math.min(line.l, q.left); line.r = Math.max(line.r, q.right); }
+            else lines.push({ t: q.top, b: q.bottom, l: q.left, r: q.right });
+          }
+          if (lines.length > 1) for (const l of lines) {
+            const a = l.l - box.l, z = box.r - l.r;
+            if (Math.abs(a - z) > Math.max(4, 0.2 * (a + z))) { ragged = "line " + a.toFixed(0) + "|" + z.toFixed(0); horiz = a < z ? "left" : "right"; break; }
+          }
+        }
         const vComputed = ts.verticalAlign === "middle" || (/flex|grid/.test(ts.display) && /center/.test(ts.alignItems));
         const vMeasured = gt + gb <= 8 || Math.abs(gt - gb) <= Math.max(3, 0.2 * (gt + gb));
         out.push({ label, kind: figures ? "figure" : wraps ? "wrap" : "text", digits, horiz, col: i,
                    middle: vComputed && vMeasured,
-                   detail: horiz + " (gaps " + gl.toFixed(0) + "|" + gr.toFixed(0) + ", text-align " + hs.textAlign + ")" });
+                   detail: horiz + " (gaps " + gl.toFixed(0) + "|" + gr.toFixed(0) + (ragged ? ", a stacked " + ragged : "") + ", text-align " + hs.textAlign + ")" });
       }
     }
     // the column decides, not the cell: a short note in a column of paragraphs sits on the
