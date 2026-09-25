@@ -356,8 +356,9 @@ const NUM = `${parseNum}\n${isFigure}\n`;
       const vals = cells.map(c => c.textContent.trim()).filter(s => !hole(s));
       if (!vals.length) continue;                               // a checkbox, an icon strip
       const figures = vals.length >= 2 && vals.every(v => parseNum(v) !== null) && vals.some(isFigure);
-      // a run of bare digits is an id or a count: right or centre, either reads fine
-      const digits = vals.every(v => /^[\\d\\s.,]+$/.test(v));
+      // whole numbers — an id, a count, "6 h" — carry no decimal to line up: a table may treat
+      // them as figures (right) or as values (centre), and either reads fine
+      const digits = vals.every(v => parseNum(v) !== null);
       const label = (ths[i]?.textContent || "#" + i).trim().slice(0, 24);
       for (const td of cells) {
         if (hole(td.textContent.trim())) continue;
