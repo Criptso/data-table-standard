@@ -38,6 +38,7 @@ config.json (every key optional; these are the defaults):
     "colRemove":  "[data-col-del], [data-column-remove]",
     "emptyRow":   "[data-empty], .tbl-empty, [data-empty-state]",
     "actions":    "[data-col-role=actions]",   // the row-actions column: header AND cells
+    "footer":     "[data-table-footer], [role=status], nav[aria-label*=pag i], .pager",
     "columnsBtn": null                  // auto: a button outside the table saying "columns"
   },
   "chrome": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -67,6 +68,8 @@ const SEL = {
   // rule 20: the row-actions column carries this on its header and on every cell. It has no
   // menu, no sort and no drag, so the checks for those look past it instead of failing it.
   actions: "[data-col-role=actions]",
+  // rule 23: the result count / pager under the table — it has to sit inside the table's card
+  footer: "[data-table-footer], [role=status], nav[aria-label*=pag i], .pager",
   columnsBtn: null,
   ...(cfg.sel || {}),
 };
@@ -242,6 +245,65 @@ const CONTRAST = `
     m.align === "center" ? pass(2, "titles centred") : fail(2, "titles not centred", m.align);
     Number(m.weight) >= 700 ? pass(2, "titles bold", `weight ${m.weight}`) : fail(2, "titles not bold", `weight ${m.weight}`);
     m.transform === "uppercase" ? pass(2, "titles uppercase") : fail(2, "titles not uppercase", m.transform);
+  }
+}
+
+// ── 23. the table sits on the card surface, in ONE card with its footer ────────────────
+{
+  const c = await page.evaluate(`(() => {
+    const lin = c => { c /= 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+    const rgba = s => (String(s).match(/[\\d.]+/g) || []).map(Number);
+    const clear = s => { const v = rgba(s); return !v.length || v[3] === 0 || s === "transparent"; };
+    const Lstar = s => { const [r, g, b] = rgba(s);
+      const y = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+      return y > 0.008856 ? 116 * Math.cbrt(y) - 16 : 903.3 * y; };
+    /** what is actually painted behind an element: its own background, else the nearest ancestor's */
+    const surface = el => { for (let e = el; e; e = e.parentElement) {
+      const b = getComputedStyle(e).backgroundColor; if (!clear(b)) return { colour: b, el: e }; }
+      return { colour: "rgb(255, 255, 255)", el: document.documentElement }; };
+    const table = document.querySelector(window.__S.table);
+    const td = document.querySelector(window.__S.rows + " td");
+    const th = document.querySelector(window.__S.head);
+    if (!table || !td || !th) return null;
+    // the card: the nearest ancestor of the table that draws a border AND rounds its corners
+    let card = null;
+    for (let e = table.parentElement, n = 0; e && e !== document.body && n < 8; e = e.parentElement, n++) {
+      const s = getComputedStyle(e);
+      const border = ["Top", "Right", "Bottom", "Left"].some(k => parseFloat(s["border" + k + "Width"]) >= 1 && !clear(s["border" + k + "Color"]));
+      if (border && parseFloat(s.borderTopLeftRadius) >= 4) { card = e; break; }
+    }
+    const rows = surface(td).colour;
+    // the page is what the card stands on: the surface behind the card, or behind the table
+    const page = surface((card || table).parentElement).colour;
+    const footers = [...document.querySelectorAll(window.__S.footer)]
+      .filter(f => !table.contains(f) && f.getBoundingClientRect().width > 0);
+    // the footer that belongs to THIS table: the first one below it
+    const tb = table.getBoundingClientRect();
+    const footer = footers.find(f => f.getBoundingClientRect().top >= tb.top) || null;
+    const s = card && getComputedStyle(card);
+    return { rows, page, dRows: Math.abs(Lstar(rows) - Lstar(page)),
+             card: !!card, radius: s ? s.borderTopLeftRadius : "", border: s ? s.borderTopWidth + " " + s.borderTopColor : "",
+             footer: !!footer, footerIn: !!(card && footer && card.contains(footer)),
+             head: getComputedStyle(th).backgroundColor, lHead: Lstar(surface(th).colour), lRows: Lstar(rows) };
+  })()`);
+  if (!c) skip(23, "table on the card surface", "no table, row or header found");
+  else {
+    /* ΔL* 2 is the floor, not 5 like the header band: a white card on a near-white canvas is
+       exactly the step the page's own cards take, and it reads — the border and the radius
+       carry the rest. Two surfaces that match to the digit do not read at all. */
+    c.dRows >= 2 ? pass(23, "the rows sit on a surface of their own, not on the page", `ΔL* ${c.dRows.toFixed(1)} — ${c.rows} on ${c.page}`)
+                 : fail(23, "the rows are painted in the page's own colour — the table melts into the page", `ΔL* ${c.dRows.toFixed(1)} — ${c.rows} on ${c.page}`);
+    c.card ? pass(23, "the table sits in a bordered, rounded card", `radius ${c.radius}, border ${c.border}`)
+           : fail(23, "no bordered, rounded box around the table");
+    if (!c.footer) skip(23, "the footer shares the card", "no result count or pager found under the table");
+    else c.footerIn ? pass(23, "the footer (count, pager) is inside the same card")
+                    : fail(23, "the footer floats outside the table's card — two boxes where there should be one");
+    /* the band keeps its own shade on the new surface (rule 16), and on a light surface it is
+       the DARKER of the two: a white card with a white band has lost its header */
+    const d = c.lHead - c.lRows;
+    if (Math.abs(d) < 5) fail(23, "the header band melts into the card surface", `ΔL* ${Math.abs(d).toFixed(1)} — under 5`);
+    else if (c.lRows > 50 && d > 0) fail(23, "the header band is lighter than the light rows", `band L* ${c.lHead.toFixed(0)} vs rows ${c.lRows.toFixed(0)}`);
+    else pass(23, "the header band stays its own shade on the card", `band L* ${c.lHead.toFixed(0)} vs rows ${c.lRows.toFixed(0)}`);
   }
 }
 
