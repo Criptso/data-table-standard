@@ -263,48 +263,27 @@ const CONTRAST = `
   }
 }
 
-/* ── what counts as a figure, shared by rules 15 and 22 ──────────────────────────────
-   Real functions, injected into the page by their source text (so they can be run in
-   Node too). Localised figures are the point: "97,6 s", "1.234,56 lei" and "12 500"
-   are numbers to a reader of a comma-decimal locale, and a detector that only knew the
-   dot SKIPPED those columns — and a skipped check reads exactly like a passing one. */
-function parseNum(s) {
-  let t = String(s).trim()
-    .replace(/^[€$£¥]\s*/u, "")                          // a leading currency: "€ 12"
-    .replace(/\s*[\p{L}%€$£¥]{1,4}\.?$/u, "")            // a trailing unit: "12.40 EUR", "97,6 s"
-    .replace(/[\s   ]/g, "")               // thousands by space, NBSP, thin space
-    .replace(/^−/, "-");
-  if (!/^[+-]?\d[\d.,]*$/.test(t) || /[.,]$/.test(t)) return null;
-  const dot = t.lastIndexOf("."), comma = t.lastIndexOf(",");
-  if (dot >= 0 && comma >= 0)                             // both: the LAST one is the decimal mark
-    t = dot > comma ? t.replace(/,/g, "") : t.replace(/\./g, "").replace(",", ".");
-  else if (comma >= 0)                                    // "1,234,567" thousands; "97,6" a decimal
-    t = /^[+-]?\d{1,3}(,\d{3}){2,}$/.test(t) ? t.replace(/,/g, "") : t.replace(",", ".");
-  else if ((t.match(/\./g) || []).length > 1)             // "1.234.567" — dots as thousands,
-    t = /^[+-]?\d{1,3}(\.\d{3})+$/.test(t) ? t.replace(/\./g, "") : "";  // "09.08.2026" a date
-  return /^[+-]?\d+(\.\d+)?$/.test(t) ? Number(t) : null;
-}
-/** a MAGNITUDE, not an identifier: an id is a run of digits too, and nobody compares two
- *  of them by size. A sign, a decimal mark or a thousands group is the tell. */
-function isFigure(s) {
-  return parseNum(s) !== null && /[.,−+-]|\d[\s  ]\d{3}(?!\d)/.test(String(s));
-}
-const NUM = `${parseNum}\n${isFigure}\n`;
-
 // ── 15. figures right-aligned, monospaced, tabular ─────────────────────────────────
 {
-  const n = await page.evaluate(`(() => { ${NUM}
+  const n = await page.evaluate(`(() => {
     const rows = ${DATA_ROWS};
     if (rows.length < 2) return null;
     const ths = [...document.querySelectorAll(window.__S.head)];
     // a column of dates is not a column of figures, and "—" is a hole rather than
     // a value: neither may decide whether a column is numeric
     const hole = s => !s || /^(—|–|-|n\\/a)$/i.test(s);
+    const num = s => {
+      const bare = s.replace(/\\s+[\\p{L}%€$£¥]{1,4}$/u, "")   // a trailing unit: "12.40 EUR"
+                    .replace(/[\\s,\\u00a0]/g, "");
+      return /^[+\\-\\u2212]?\\d+(\\.\\d+)?$/.test(bare);
+    };
     const out = [];
     for (let i = 0; i < (rows[0].children.length); i++) {
       const cells = rows.map(r => r.children[i]).filter(Boolean);
       const vals = cells.map(c => c.textContent.trim()).filter(s => !hole(s));
-      if (vals.length < 2 || !vals.every(v => parseNum(v) !== null) || !vals.some(isFigure)) continue;
+      // a MAGNITUDE, not an identifier: an id is a run of digits too, and nobody
+      // compares two of them by size. A sign or a decimal point is the tell.
+      if (vals.length < 2 || !vals.every(num) || !vals.some(s => /[.\\u2212+-]/.test(s))) continue;
       const c = cells.find(c => !hole(c.textContent.trim()));
       const s = getComputedStyle(c);
       out.push({ label: (ths[i]?.textContent || "#" + i).trim(),
@@ -331,98 +310,6 @@ const NUM = `${parseNum}\n${isFigure}\n`;
   }
 }
 
-// ── 22. cell alignment: centred by default, figures right, wrapping text left ──────
-{
-  /* MEASURED where it can be: a centred <td> holding a full-width flex box paints its
-     content flush left while every computed style on the cell says "center". So where a
-     cell has slack, the gaps either side of the painted content decide; only where the
-     content fills the cell (nothing left to measure) does the computed alignment. */
-  const a = await page.evaluate(`(() => { ${NUM}
-    const rows = ${DATA_ROWS}.slice(0, 12);
-    if (!rows.length) return null;
-    const ths = [...document.querySelectorAll(window.__S.head)];
-    const hole = s => !s || /^(—|–|-|n\\/a)$/i.test(s);
-    const WRAPS = /^(normal|pre-wrap|pre-line|break-spaces)$/;
-    const out = [];
-    for (let i = 0; i < rows[0].children.length; i++) {
-      const cells = rows.map(r => r.children[i]).filter(c => c && !c.matches(window.__S.actions));
-      const vals = cells.map(c => c.textContent.trim()).filter(s => !hole(s));
-      if (!vals.length) continue;                               // a checkbox, an icon strip
-      const figures = vals.length >= 2 && vals.every(v => parseNum(v) !== null) && vals.some(isFigure);
-      // a run of bare digits is an id or a count: right or centre, either reads fine
-      const digits = vals.every(v => /^[\\d\\s.,]+$/.test(v));
-      const label = (ths[i]?.textContent || "#" + i).trim().slice(0, 24);
-      for (const td of cells) {
-        if (hole(td.textContent.trim())) continue;
-        const tr = td.getBoundingClientRect(), ts = getComputedStyle(td);
-        const box = { l: tr.left + parseFloat(ts.paddingLeft), r: tr.right - parseFloat(ts.paddingRight),
-                      t: tr.top + parseFloat(ts.paddingTop), b: tr.bottom - parseFloat(ts.paddingBottom) };
-        // painted content = text and replaced boxes, never an absolutely placed grip or tooltip
-        const floats = el => { for (let e = el; e && e !== td; e = e.parentElement) {
-          const s = getComputedStyle(e);
-          if (/absolute|fixed/.test(s.position) || s.display === "none" || s.visibility === "hidden") return true; }
-          return false; };
-        const rects = [], tops = new Set(); let host = null, clipped = false;
-        const walk = document.createTreeWalker(td, NodeFilter.SHOW_TEXT);
-        for (let n; (n = walk.nextNode());) {
-          if (!n.textContent.trim() || floats(n.parentElement)) continue;
-          host = host || n.parentElement;
-          const rg = document.createRange(); rg.selectNodeContents(n);
-          for (const q of rg.getClientRects()) if (q.width > 0) { rects.push(q); tops.add(Math.round(q.top)); }
-        }
-        for (const e of td.querySelectorAll("svg, img, input, [role=img]"))
-          if (!floats(e)) { const q = e.getBoundingClientRect(); if (q.width > 0) rects.push(q); }
-        for (const e of [td, ...td.querySelectorAll("*")])
-          if (!floats(e) && e.clientHeight > 0 && e.textContent.trim() &&
-              (e.scrollHeight > e.clientHeight + 1 || e.scrollWidth > e.clientWidth + 1)) clipped = true;
-        if (!rects.length) continue;
-        const c = { l: Math.min(...rects.map(q => q.left)), r: Math.max(...rects.map(q => q.right)),
-                    t: Math.min(...rects.map(q => q.top)), b: Math.max(...rects.map(q => q.bottom)) };
-        const gl = c.l - box.l, gr = box.r - c.r, gt = c.t - box.t, gb = box.b - c.b;
-        const hs = getComputedStyle(host || td);
-        const wraps = (tops.size > 1 && WRAPS.test(hs.whiteSpace)) || clipped;
-        let horiz;
-        if (gl + gr > 8) horiz = Math.abs(gl - gr) <= Math.max(3, 0.15 * (gl + gr)) ? "center" : gl < gr ? "left" : "right";
-        else {
-          const ta = /flex|grid/.test(ts.display) ? ts.justifyContent : hs.textAlign;
-          horiz = /center/.test(ta) ? "center" : /right|end/.test(ta) ? "right" : "left";
-        }
-        const vComputed = ts.verticalAlign === "middle" || (/flex|grid/.test(ts.display) && /center/.test(ts.alignItems));
-        const vMeasured = gt + gb <= 8 || Math.abs(gt - gb) <= Math.max(3, 0.2 * (gt + gb));
-        out.push({ label, kind: figures ? "figure" : wraps ? "wrap" : "text", digits, horiz, col: i,
-                   middle: vComputed && vMeasured,
-                   detail: horiz + " (gaps " + gl.toFixed(0) + "|" + gr.toFixed(0) + ", text-align " + hs.textAlign + ")" });
-      }
-    }
-    // the column decides, not the cell: a short note in a column of paragraphs sits on the
-    // same left edge as its neighbours, or the column has no edge at all
-    const wrapCols = new Set(out.filter(c => c.kind === "wrap").map(c => c.col));
-    for (const c of out) if (c.kind === "text" && wrapCols.has(c.col)) c.kind = "wrap";
-    return out;
-  })()`);
-  if (!a) skip(22, "cell alignment", "no rows");
-  else {
-    /** one line per kind, naming each offending column once */
-    const judge = (kind, want, okName, badName) => {
-      const cells = a.filter(c => c.kind === kind);
-      if (!cells.length) return skip(22, okName, `no ${kind} cell in view`);
-      const bad = cells.filter(c => !want(c));
-      const named = [...new Map(bad.map(c => [c.label, `${c.label}: ${c.detail}`])).values()].slice(0, 4).join("; ");
-      bad.length ? fail(22, badName, named)
-                 : pass(22, okName, `${cells.length} cells in ${new Set(cells.map(c => c.label)).size} columns`);
-    };
-    judge("text", c => c.horiz === "center" || (c.digits && c.horiz === "right"),
-          "text cells centred", "text cells are not centred");
-    judge("figure", c => c.horiz === "right", "figures right-aligned", "figures are not right-aligned");
-    judge("wrap", c => c.horiz === "left", "wrapping long text left-aligned",
-          "wrapping text is centred — a ragged paragraph has no edge to read from");
-    const off = a.filter(c => !c.middle);
-    if (!a.length) skip(22, "cells centred vertically", "no cell with content");
-    else off.length ? fail(22, "cells are not centred vertically", [...new Set(off.map(c => c.label))].slice(0, 4).join(", "))
-                    : pass(22, "cells centred vertically", `${a.length} cells`);
-  }
-}
-
 // ── 3. sorting ─────────────────────────────────────────────────────────────────────
 if (await rowCount() < 2) skip(3, "sorting", "fewer than two rows");
 else {
@@ -442,78 +329,6 @@ else {
   }, DATA_HEAD);
   marked ? pass(3, "the sorted column is marked") : fail(3, "no visible sort indicator");
   void before;
-}
-
-/* ── 21. the sort column carries a bar; a search box carries a magnifier ─────────────
-   The magnifier half is shared with rule 12, which runs it on the column menu's own
-   box while that menu is open. */
-const magnifier = sel => page.evaluate(sel => {
-  const box = [...document.querySelectorAll(sel)]
-    .find(b => b.getBoundingClientRect().width > 0 && getComputedStyle(b).visibility !== "hidden");
-  if (!box) return null;
-  const br = box.getBoundingClientRect(), bs = getComputedStyle(box);
-  const textStart = parseFloat(bs.borderLeftWidth) + parseFloat(bs.paddingLeft);
-  // a background-image icon sits in the padding, so the padding has to hold it
-  if (bs.backgroundImage !== "none") return { how: "background", ok: textStart >= 22, textStart };
-  // an icon laid over the box, in its left part — looked for in the box's wrappers
-  const icon = [box.parentElement, box.parentElement?.parentElement].filter(Boolean)
-    .flatMap(w => [...w.querySelectorAll("svg, img, [data-icon]")])
-    .find(i => { const r = i.getBoundingClientRect();
-                 return r.width > 4 && r.left >= br.left - 1 && r.right <= br.left + br.width * 0.4
-                     && r.top >= br.top - 1 && r.bottom <= br.bottom + 1; });
-  if (!icon) return { how: "none" };
-  const iconEnd = icon.getBoundingClientRect().right - br.left;
-  return { how: "icon", ok: iconEnd <= textStart + 0.5, iconEnd, textStart };
-}, sel);
-const judgeMagnifier = (m, where) => {
-  if (!m) return skip(21, `magnifier in the ${where} search box`, "no visible search box there");
-  if (m.how === "none") return fail(21, `the ${where} search box has no magnifier inside it`);
-  const d = m.how === "icon" ? `icon ends at ${m.iconEnd.toFixed(0)}px, text starts at ${m.textStart.toFixed(0)}px`
-                             : `background icon, text starts at ${m.textStart.toFixed(0)}px`;
-  m.ok ? pass(21, `magnifier inside the ${where} search box, clear of the text`, d)
-       : fail(21, `the ${where} search box's magnifier sits under the text`, d);
-};
-{
-  const bar = await page.evaluate(() => {
-    const ths = [...document.querySelectorAll(window.__S.head)];
-    const sorted = ths.find(t => /^(ascending|descending)$/.test(t.getAttribute("aria-sort") || ""));
-    if (!sorted) return null;
-    const clear = c => !c || c === "transparent" || /rgba\(\d+, \d+, \d+, 0\)/.test(c);
-    /** a horizontal stroke under the title: a pseudo-element on the header or anything in it,
-     *  or a bottom border — wider than tall, 1–6 px thick, coloured. The rule-13 divider is a
-     *  pseudo too, but upright, so the shape tells them apart. `sig` leaves the width out so
-     *  the same stroke on a narrower column still counts as the same stroke. */
-    const bars = th => {
-      const found = [];
-      [th, ...th.querySelectorAll("*")].forEach((el, k) => {
-        for (const p of ["::before", "::after"]) {
-          const s = getComputedStyle(el, p);
-          if (s.content === "none" || s.display === "none" || s.visibility === "hidden") continue;
-          const filled = !clear(s.backgroundColor);
-          const thick = filled ? parseFloat(s.height) : parseFloat(s.borderBottomWidth);
-          const colour = filled ? s.backgroundColor : s.borderBottomColor;
-          const w = parseFloat(s.width) || 0;
-          if (thick >= 1 && thick <= 6 && w >= 12 && w > 3 * thick && !clear(colour))
-            found.push({ sig: `${k}${p} ${thick}px ${colour}`, text: `${p} ${w.toFixed(0)}×${thick}px ${colour}` });
-        }
-      });
-      const s = getComputedStyle(th);
-      if (parseFloat(s.borderBottomWidth) >= 2 && !clear(s.borderBottomColor))
-        found.push({ sig: `border ${s.borderBottomWidth} ${s.borderBottomColor}`, text: `border-bottom ${s.borderBottomWidth} ${s.borderBottomColor}` });
-      return found;
-    };
-    const other = ths.find(t => t !== sorted && !t.matches(window.__S.actions));
-    const theirs = new Set((other ? bars(other) : []).map(b => b.sig));
-    // a stroke every header carries is the band's own rule, not a mark: it has to be the sorted one's alone
-    const own = bars(sorted).filter(b => !theirs.has(b.sig));
-    return { label: sorted.textContent.trim().slice(0, 24), own: own.map(b => b.text), shared: theirs.size };
-  });
-  if (!bar) gone(21, "no header carries aria-sort after sorting — the sorted column is told by nothing a checker or a screen reader can read");
-  else bar.own.length
-    ? pass(21, "the sorted column has a bar under its title", `${bar.label}: ${bar.own[0]}`)
-    : fail(21, "the sorted column is marked only by its arrow — no bar under the title", bar.label);
-  // the toolbar box; the column menu's own box is judged in rule 12, where that menu is open
-  judgeMagnifier(await magnifier(SEL.search), "table");
 }
 
 // ── 7. frozen first column, and ONE scrollport for both planes ─────────────────────
@@ -1063,7 +878,6 @@ else {
     }
   }
   const searchSel = (await has(inMenu)) ? inMenu : SEL.search;
-  if (searchSel === inMenu) judgeMagnifier(await magnifier(inMenu), "column menu");
   const boxes = await page.$$(searchSel);
   if (!boxes.length) gone(12, "no search box — not on the page, not in a column menu");
   else {
