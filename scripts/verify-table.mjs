@@ -41,7 +41,9 @@ config.json (every key optional; these are the defaults):
     "columnsBtn": null                  // auto: a button outside the table saying "columns"
   },
   "chrome": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-  "viewport": { "width": 1200, "height": 850 }
+  "viewport": { "width": 1200, "height": 850 },
+  "cookies": [],                        // e.g. a session: [{ "name": "sid", "value": "…", "url": "<origin>" }]
+  "storage": {}                         // localStorage keys set before every load, e.g. { "lang": "en" }
 }
 `;
 
@@ -93,6 +95,11 @@ await page.setViewport(VP);
 // on every document, not just this one: the reorder check reloads, and the selectors have to
 // survive that or the next evaluate reads window.__S as undefined
 await page.evaluateOnNewDocument(s => { window.__S = s; }, SEL);
+// an app behind a login, or one that picks its language from storage, is checked as its user sees it
+if (cfg.cookies?.length) await page.setCookie(...cfg.cookies);
+if (cfg.storage) await page.evaluateOnNewDocument(kv => {
+  try { for (const [k, v] of Object.entries(kv)) localStorage.setItem(k, v); } catch {}
+}, cfg.storage);
 await page.goto(URL, { waitUntil: "networkidle2" });
 await page.waitForSelector(SEL.rows, { timeout: 20000 }).catch(() => {});
 
