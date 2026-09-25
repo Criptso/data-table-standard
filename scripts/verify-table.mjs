@@ -413,7 +413,10 @@ const NUM = `${parseNum}\n${isFigure}\n`;
             if (line) { line.l = Math.min(line.l, q.left); line.r = Math.max(line.r, q.right); }
             else lines.push({ t: q.top, b: q.bottom, l: q.left, r: q.right });
           }
-          if (lines.length > 1) for (const l of lines) {
+          // a box standing BESIDE a stack (a version tag next to a date over its time) spans two
+          // lines: that is a row of blocks, not a stack of lines, and its lines are not judged
+          const beside = outer.some(q => lines.filter(l => q.top < l.b - 1 && q.bottom > l.t + 1).length > 1);
+          if (lines.length > 1 && !beside) for (const l of lines) {
             const a = l.l - box.l, z = box.r - l.r;
             if (Math.abs(a - z) > Math.max(4, 0.2 * (a + z))) { ragged = "line " + a.toFixed(0) + "|" + z.toFixed(0); horiz = a < z ? "left" : "right"; break; }
           }
