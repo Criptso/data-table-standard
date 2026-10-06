@@ -876,13 +876,11 @@ const judgeMagnifier = (m, where) => {
 {
   const clip = await page.evaluate(() => {
     const cells = [...document.querySelectorAll(window.__S.rows + " td")];
-    for (const c of cells) {
+    for (const [i, c] of cells.entries()) {
       const inner = c.firstElementChild || c;
       if (inner.scrollHeight > inner.clientHeight + 1) {
         const cs = getComputedStyle(inner);
-        const r = inner.getBoundingClientRect();
-        return { clamp: cs.webkitLineClamp, lineH: parseFloat(cs.lineHeight),
-                 shown: inner.clientHeight, x: r.x + r.width / 2, y: r.y + r.height / 2,
+        return { i, clamp: cs.webkitLineClamp, lineH: parseFloat(cs.lineHeight), shown: inner.clientHeight,
                  text: inner.textContent.trim(), title: c.getAttribute("title") || "" };
       }
     }
@@ -899,20 +897,45 @@ const judgeMagnifier = (m, where) => {
     spread <= clip.lineH * 2 + 4
       ? pass(8, "row heights stay within the three-line cap", `spread ${spread.toFixed(0)}px ≤ ${(clip.lineH * 2).toFixed(0)}px`)
       : fail(8, "a row grew past the cap", `spread ${spread.toFixed(0)}px over a ${clip.lineH.toFixed(0)}px line`);
-    await page.mouse.move(clip.x, clip.y);
-    await sleep(250);
-    const revealed = await page.evaluate(t => {
-      const wanted = t.replace(/\s+/g, " ").trim();
-      return [...document.querySelectorAll("body *")].some(el => {
-        if (el.closest(window.__S.rows)) return false;
-        const s = getComputedStyle(el);
-        if (s.display === "none" || s.visibility === "hidden" || el.hidden) return false;
-        return el.textContent.replace(/\s+/g, " ").trim() === wanted;
-      });
-    }, clip.text);
-    if (revealed) pass(8, "hovering a clipped cell reveals the full text");
-    else if (clip.title.trim() === clip.text) pass(8, "full text on hover via the title attribute", "weaker than a styled reveal");
-    else fail(8, "a clipped cell reveals nothing on hover");
+    /* Hover a point of the cell that is on screen and on top, not its blind centre. On a table
+       wider than the window that centre can sit under the pinned actions column (rule 20) or the
+       frozen first column (rule 7): the mouse lands on THAT cell, and a live reveal reads as dead.
+       elementFromPoint has the last word — it also answers null off the viewport. */
+    const spot = () => page.evaluate(i => {
+      const c = document.querySelectorAll(window.__S.rows + " td")[i];
+      const r = (c.firstElementChild || c).getBoundingClientRect();
+      for (const fy of [0.5, 0.25, 0.75]) for (const fx of [0.5, 0.25, 0.75, 0.1, 0.9]) {
+        const x = r.x + r.width * fx, y = r.y + r.height * fy;
+        if (c.contains(document.elementFromPoint(x, y))) return { x, y };
+      }
+      return null;
+    }, clip.i);
+    let at = await spot();
+    if (!at) {
+      await page.evaluate(i => {
+        const c = document.querySelectorAll(window.__S.rows + " td")[i];
+        (c.firstElementChild || c).scrollIntoView({ inline: "center", block: "nearest" });
+      }, clip.i);
+      await sleep(150);
+      at = await spot();
+    }
+    if (!at) skip(8, "hover reveal", "no point of the clipped cell is on screen and on top, even scrolled to it");
+    else {
+      await page.mouse.move(at.x, at.y);
+      await sleep(250);
+      const revealed = await page.evaluate(t => {
+        const wanted = t.replace(/\s+/g, " ").trim();
+        return [...document.querySelectorAll("body *")].some(el => {
+          if (el.closest(window.__S.rows)) return false;
+          const s = getComputedStyle(el);
+          if (s.display === "none" || s.visibility === "hidden" || el.hidden) return false;
+          return el.textContent.replace(/\s+/g, " ").trim() === wanted;
+        });
+      }, clip.text);
+      if (revealed) pass(8, "hovering a clipped cell reveals the full text");
+      else if (clip.title.trim() === clip.text) pass(8, "full text on hover via the title attribute", "weaker than a styled reveal");
+      else fail(8, "a clipped cell reveals nothing on hover");
+    }
   }
   if (!(await has(SEL.rowGrip))) gone(8, "no row height grip");
   else {
