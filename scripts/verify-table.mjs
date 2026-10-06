@@ -1004,7 +1004,7 @@ const judgeMagnifier = (m, where) => {
           return !th || !hit ? "out" : !th.contains(hit) ? "out" : hit.closest(gripSel) ? "edge" : "inside";
         }, k, x, h.grip.y, SEL.colGrip);
         let at = await where();
-        for (let more = 0; at === "edge" && more < 25; more++) {
+        for (let more = 0; at === "edge" && more < 15; more++) {
           await page.mouse.move(x + step, h.grip.y, { steps: 2 }); x += step; await sleep(30);
           at = await where();
         }
