@@ -5,7 +5,8 @@ description: >-
   header, click-to-sort, a per-column menu (filter by value, search, date range, derived
   columns), frozen first column, row actions pinned right, add-column that reaches the database, smart widths with
   Excel-style wrap, a 3-line cap per cell with hover reveal, resizable rows and columns,
-  centred cells with right-aligned tabular figures, a bar on the sorted column, the table and its pager as one card, and one date format. Use BEFORE building or changing any table, grid, or list with more than one
+  centred cells with right-aligned tabular figures, a bar on the sorted column, the table and its pager as one card, a fit
+  to the window in stages before any sideways scroll, a header cell that sorts wherever it is clicked, and one date format. Use BEFORE building or changing any table, grid, or list with more than one
   column — dashboards, admin screens, inventory, reports, invoices, anything with rows. Also
   use when a table already exists and is being reviewed, extended, or restyled, and whenever
   someone says the list should behave "like Excel" or "like Sheets". Ships a browser-driven
@@ -32,7 +33,7 @@ about to write `<table>`, a data grid, a `.map()` over rows, or reach for a grid
 read this first and plan the schema for custom fields and per-user column preferences from the
 start — retrofitting persistence is the expensive half.
 
-## The 23 rules
+## The 25 rules
 
 1. **Header band, and its contrast is measurable.** Distinct background, bold, tracked, sticky
    on scroll, with a clear separator from the rows. **Target ≥7:1 against its own background.**
@@ -42,7 +43,7 @@ start — retrofitting persistence is the expensive half.
    which quietly forbade a *light* band — once the band lightens, text on it necessarily
    contrasts less. What replaces that half is rule 16: the band must be its own shade.
 2. **Column titles centred, bold, UPPERCASE** unless that table's brief says otherwise.
-3. **Click the title to sort**, asc/desc, with a direction indicator, and the active column
+3. **Click the title to sort** (anywhere on its cell, rule 25), asc/desc, with a direction indicator, and the active column
    visibly marked. Corollary that bites: **if the default sort is on a field with no visible
    column, nobody can tell how the list is ordered** — either sort by a visible column or say
    somewhere what the order is.
@@ -79,7 +80,7 @@ start — retrofitting persistence is the expensive half.
    cell reveals the rest — no click, no drawer. Only cells actually clipped may react, or short
    cells sprout tooltips for nothing. The user can still raise a row's height permanently, and
    that height persists.
-9. **Smart widths with Excel wrap.** The table fits its window without cutting information:
+9. **Smart widths with Excel wrap.** The table fits its window (in stages, rule 24) without cutting information:
    short values (dates, numbers, ticks, ids) keep their natural width and never wrap; long text
    yields first, shrinking and then wrapping over several lines. The user can always drag a
    column wider, persisted — the safety net for when the algorithm guesses wrong.
@@ -241,6 +242,29 @@ start — retrofitting persistence is the expensive half.
     radius carry the rest — that is the step a white card takes on a near-white canvas — and 0
     is a table with no surface at all.
 
+24. **The table fits its window in stages.** First the long-text columns shrink and wrap onto
+    several lines; then the columns declared as text wrap too; then the header's sort arrow and
+    menu circle drop under the title. Only if it still does not fit does the table keep its widths
+    and scroll sideways. Short-content columns — dates, money, numbers, ids, ticks — never wrap, at
+    any stage. The order is the point: squeeze only as far as fitting needs, cheapest loss first. A
+    table that scrolls sideways at a width where it could have fitted hides its last columns behind
+    a scroll nobody suspects is there; one that squeezes everything at once turns a name that
+    would have read on one line into a cramped clamp. And when nothing fits — a phone — squeezing
+    buys nothing but three-line cells, so the table keeps its widths and the box scrolls (rules 7
+    and 20 keep the first column and the actions on screen while it does). A column of names or
+    places that reads best on one line while there is room is "declared as text": mark its cells
+    `data-soft-wrap`, so a checker counts it as a column that CAN wrap even while it sits on one
+    line. The checker does not trust a stage attribute (`data-fit` or anything else): it lays the
+    table out with every stage taken and fails a table that scrolls although that layout fits.
+
+25. **A click anywhere on a header cell sorts that column**, not only on the title. Exceptions:
+    the **menu circle** (it opens the column menu), the **drag grip**, and the **resize edge** — and
+    a resize drag that ends inside the cell must NOT sort. In a spreadsheet the header cell is the
+    target, and once rule 24 folds the marks under the title the middle of the cell is empty: a
+    click there that does nothing is a dead control that looks exactly like a live one. The title
+    stays a focusable button, so Enter and Space still sort from the keyboard. The resize half is
+    the one that ships broken, because it never shows up when you click: see the trap below.
+
 ## Traps that have already cost time
 
 Read these before writing the code; every one shipped at least once.
@@ -290,6 +314,24 @@ Read these before writing the code; every one shipped at least once.
 - **Sorting must not fire from the menu handle or the resize grip.** They sit inside the header
   cell, and if they share a listener node, `stopPropagation` will not save you — guard on the
   target.
+- **A drag that ends inside its cell clicks the cell.** The browser fires `click` on the nearest
+  common ancestor of the press and the release, so a resize drag that starts on the edge and ends
+  a few pixels inside the header cell — the column stopped following the pointer, at its floor or
+  because the layout gave the width elsewhere — clicks the CELL, and a guard on the click's target
+  never sees the grip. It sorted three lists in one product, and the same click selected every row
+  from the checkbox header and opened a record from a row-height drag. Swallow the click that
+  follows a drag, once, in the capture phase, in the drag code every grip shares; it arrives in the
+  same task as the release or not at all, so remove the trap after that task.
+- **A starting width is a suggestion, never a floor.** A long column's starting cap written as
+  `min-width` held two text columns at 260 px and pushed a ten-column list 432 px past its window —
+  a table that could have fitted, scrolling. Give the cap as a bare `width`, which the auto layout
+  may spend, and turn it into a floor only at the last stage, when the table has given up fitting.
+- **Reduced motion that shortens transitions instead of removing them.** `transition-duration:
+  0.01ms` with the default `transition-property: all` turns every style change into a transition,
+  so code that changes a style and measures in the same breath — a fit loop trying its stages, a
+  checker — reads the width from BEFORE the change. Measure with transitions off, or write
+  `transition-property: none` in the reduced-motion block. Found because this verifier's own fit
+  check measured a squeezed column at its old 260 px on a machine with Reduce Motion on.
 - **The clamp cannot live on the `<td>`.** A cell has to stay `display: table-cell`; put the
   line clamp on an inner box.
 - **A debounced layout write dies with the document.** Column order, widths and row heights are
