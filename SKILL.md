@@ -6,7 +6,8 @@ description: >-
   columns), frozen first column, row actions pinned right, add-column that reaches the database, smart widths with
   Excel-style wrap, a 3-line cap per cell with hover reveal, resizable rows and columns,
   centred cells with right-aligned tabular figures, a bar on the sorted column, the table and its pager as one card, a fit
-  to the window in stages before any sideways scroll, a header cell that sorts wherever it is clicked, and one date format. Use BEFORE building or changing any table, grid, or list with more than one
+  to the window in stages before any sideways scroll, a header cell that sorts wherever it is
+  clicked, and one date format. Use BEFORE building or changing any table, grid, or list with more than one
   column — dashboards, admin screens, inventory, reports, invoices, anything with rows. Also
   use when a table already exists and is being reviewed, extended, or restyled, and whenever
   someone says the list should behave "like Excel" or "like Sheets". Ships a browser-driven
@@ -43,8 +44,8 @@ start — retrofitting persistence is the expensive half.
    which quietly forbade a *light* band — once the band lightens, text on it necessarily
    contrasts less. What replaces that half is rule 16: the band must be its own shade.
 2. **Column titles centred, bold, UPPERCASE** unless that table's brief says otherwise.
-3. **Click the title to sort** (anywhere on its cell, rule 25), asc/desc, with a direction indicator, and the active column
-   visibly marked. Corollary that bites: **if the default sort is on a field with no visible
+3. **Click the title to sort** (anywhere on its cell, rule 25), asc/desc, with a direction
+   indicator, and the active column visibly marked. Corollary that bites: **if the default sort is on a field with no visible
    column, nobody can tell how the list is ordered** — either sort by a visible column or say
    somewhere what the order is.
 4. **A per-column menu**, opened from a mark beside the title, Sheets style: tick/untick the
@@ -80,8 +81,8 @@ start — retrofitting persistence is the expensive half.
    cell reveals the rest — no click, no drawer. Only cells actually clipped may react, or short
    cells sprout tooltips for nothing. The user can still raise a row's height permanently, and
    that height persists.
-9. **Smart widths with Excel wrap.** The table fits its window (in stages, rule 24) without cutting information:
-   short values (dates, numbers, ticks, ids) keep their natural width and never wrap; long text
+9. **Smart widths with Excel wrap.** The table fits its window (in stages, rule 24) without
+   cutting information: short values (dates, numbers, ticks, ids) keep their natural width and never wrap; long text
    yields first, shrinking and then wrapping over several lines. The user can always drag a
    column wider, persisted — the safety net for when the algorithm guesses wrong.
 10. **The menu mark is a CIRCLE, not a chevron.** The sort indicator beside it is already a
