@@ -37,6 +37,7 @@ config.json (every key optional; these are the defaults):
     "newColumn":  "[data-newcol], input[placeholder*='new column' i]",
     "colRemove":  "[data-col-del], [data-column-remove]",
     "emptyRow":   "[data-empty], .tbl-empty, [data-empty-state]",
+    "softWrap":   "[data-soft-wrap]",          // cells of a column DECLARED text: it wraps from the second fit stage (rule 24)
     "actions":    "[data-col-role=actions]",   // the row-actions column: header AND cells
     "footer":     "[data-table-footer], [role=status], nav[aria-label*=pag i], .pager",
     "columnsBtn": null                  // auto: a button outside the table saying "columns"
@@ -65,6 +66,9 @@ const SEL = {
   newColumn: "[data-newcol], input[placeholder*='new column' i]",
   colRemove: "[data-col-del], [data-column-remove]",
   emptyRow: "[data-empty], .tbl-empty, [data-empty-state]",
+  // rule 24: a column declared text (names, places) wraps only once the table has to yield it —
+  // until then it may sit on one line, and the fit check must still count it as one that can wrap
+  softWrap: "[data-soft-wrap]",
   // rule 20: the row-actions column carries this on its header and on every cell. It has no
   // menu, no sort and no drag, so the checks for those look past it instead of failing it.
   actions: "[data-col-role=actions]",
@@ -1187,6 +1191,21 @@ const judgeMagnifier = (m, where) => {
   }
   if (!(await has(SEL.rowGrip))) gone(8, "no row height grip");
   else {
+    /* Bring the first row's grip on screen first, VERTICALLY, through every scrolling ancestor and
+       then the window. The hover reveal above may have scrolled the box down, leaving row 1 above
+       its top: the drag then starts at y < 0, lands on nothing, and a live grip reads as dead
+       ("45 → 45px"). Sideways is left alone, as in rule 20 — the grip sits on the frozen column. */
+    await page.evaluate(sel => {
+      const g = document.querySelector(sel);
+      for (let p = g.parentElement; p && p !== document.body; p = p.parentElement) {
+        if (p.scrollHeight <= p.clientHeight + 1 || !/auto|scroll/.test(getComputedStyle(p).overflowY)) continue;
+        const t = g.getBoundingClientRect(), b = p.getBoundingClientRect();
+        p.scrollTop += (t.top + t.height / 2) - (b.top + p.clientTop + p.clientHeight / 2);
+      }
+      const t = g.getBoundingClientRect();
+      if (t.top < 0 || t.bottom > innerHeight) window.scrollBy(0, t.top - (innerHeight - t.height) / 2);
+    }, SEL.rowGrip);
+    await sleep(150);
     const gb = await (await page.$(SEL.rowGrip)).boundingBox();
     const h = () => page.$eval(SEL.rows, r => Math.round(r.getBoundingClientRect().height));
     const h0 = await h();
