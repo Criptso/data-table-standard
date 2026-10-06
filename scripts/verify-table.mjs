@@ -785,6 +785,246 @@ const judgeMagnifier = (m, where) => {
   await sleep(200);
 }
 
+// ── 24. the table fits its window in stages; it scrolls only when it cannot fit ─────
+{
+  /* Judged here, after rules 7 and 20 have narrowed the window and given it back: a table that
+     fitted at load has to fit again, the way it does for someone who resizes the window. And
+     before rules 9 and 25 drag any column: a width the USER dragged is his floor, not the table's.
+
+     Measured, never read off a stage attribute. The question is whether the table could fit
+     with every stage of the rule taken — text columns (the ones that wrap, or are declared text
+     with `data-soft-wrap`) shrunk to their longest word, header titles wrapped, the marks beside
+     a title folded under it — and the only honest way to answer it is to lay the table out that
+     way: inline `!important`, so no rule of the product's can hold a column wider, then put every
+     style back. With transitions OFF while it happens: under a reduced-motion stylesheet that
+     shortens every transition instead of removing it, a synchronous read sees the OLD width. */
+  await sleep(400);
+  const f = await page.evaluate(`(() => { ${NUM}
+    const table = document.querySelector(window.__S.table);
+    if (!table) return null;
+    let sc = window.__S.scroller ? document.querySelector(window.__S.scroller) : table.parentElement;
+    while (!window.__S.scroller && sc && sc !== document.body && !/auto|scroll/.test(getComputedStyle(sc).overflowX))
+      sc = sc.parentElement;
+    if (!sc || sc === document.body) sc = table.parentElement;
+    const ths = [...document.querySelectorAll(window.__S.head)];
+    const rows = ${DATA_ROWS};
+    const WRAPS = /^(normal|pre-wrap|pre-line|break-spaces)$/;
+    const over = () => sc.scrollWidth - sc.clientWidth;
+    const widths = () => ths.map(t => Math.round(t.getBoundingClientRect().width));
+    const label = i => (ths[i]?.textContent || "#" + i).trim().slice(0, 20);
+    const out = { stage: table.getAttribute("data-fit"), over: over(), box: sc.clientWidth, need: sc.scrollWidth };
+
+    /* short values never wrap: a date, a figure or an id that breaks onto a second line is
+       measured from the lines its text paints on, not from its white-space */
+    const hole = s => !s || /^(—|–|-|n\\/a)$/i.test(s);
+    const date = s => /^\\d{1,2} \\p{L}{3,12}\\.? \\d{4}$/u.test(s) || /^\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4}$/.test(s) || /^\\d{4}-\\d{2}-\\d{2}$/.test(s);
+    const id = s => s.length <= 24 && /\\d/.test(s) && /^[\\p{L}\\d][\\p{L}\\d._\\/#-]*$/u.test(s);
+    const shortVal = s => date(s) || parseNum(s) !== null || id(s);
+    const floats = (el, cell) => { for (let e = el; e && e !== cell; e = e.parentElement) {
+      const s = getComputedStyle(e); if (/absolute|fixed/.test(s.position) || s.display === "none") return true; } return false; };
+    const lines = cell => { const tops = new Set(); const w = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
+      for (let n; (n = w.nextNode());) { if (!n.textContent.trim() || floats(n.parentElement, cell)) continue;
+        const rg = document.createRange(); rg.selectNodeContents(n);
+        for (const q of rg.getClientRects()) if (q.width > 0) tops.add(Math.round(q.top)); }
+      return tops.size; };
+    out.short = 0; out.wrapped = [];
+    const n = rows[0]?.children.length || 0;
+    for (let i = 0; i < n; i++) {
+      const cells = rows.map(r => r.children[i]).filter(c => c && !c.matches(window.__S.actions));
+      const vals = cells.map(c => c.textContent.trim()).filter(v => !hole(v));
+      if (vals.length < 2 || !vals.every(shortVal)) continue;
+      out.short++;
+      const bad = cells.find(c => lines(c) > 1);
+      if (bad) out.wrapped.push(label(i) + ': "' + bad.textContent.trim() + '"');
+    }
+
+    if (out.over <= 1) return out;
+    /* it overflows: lay it out with every stage taken and see whether it would have fitted */
+    const before = widths();
+    const saved = new Map();
+    const put = (el, css) => { if (!saved.has(el)) saved.set(el, el.getAttribute("style")); el.style.cssText += ";" + css; };
+    const still = "transition:none !important";
+    for (const el of [table, ...table.querySelectorAll("*")]) put(el, still);
+    const text = [];
+    ths.forEach((th, i) => {
+      put(th, "white-space:normal !important");
+      // the marks fold under the title: the header's own boxes wrap, but never the inside of a
+      // control — a sort button holding its title and its arrow is one control, the title
+      for (const el of th.querySelectorAll("*"))
+        if (/flex/.test(getComputedStyle(el).display) && !el.closest("button, [role=button]")) put(el, "flex-wrap:wrap !important");
+      const cells = rows.map(r => r.children[i]).filter(Boolean);
+      const isText = cells.some(c => WRAPS.test(getComputedStyle(c).whiteSpace) || c.matches(window.__S.softWrap));
+      if (!isText) return;
+      text.push(i);
+      put(th, "min-width:0 !important");
+      for (const c of cells) {
+        put(c, "min-width:0 !important;white-space:normal !important");
+        for (const k of c.children) if (!/absolute|fixed/.test(getComputedStyle(k).position)) put(k, "min-width:0 !important;white-space:normal !important");
+      }
+    });
+    out.squeezed = { need: sc.scrollWidth, over: over() };
+    const after = widths();
+    // the columns that gave up the most width when squeezed are the ones that were holding it
+    out.held = text.map(i => ({ i, d: before[i] - after[i] })).filter(c => c.d > 8)
+      .sort((a, b) => b.d - a.d).slice(0, 3).map(c => label(c.i) + " " + before[c.i] + "→" + after[c.i] + "px");
+    // put it back with transitions still off — a restore that transitioned would start from the squeeze
+    for (const [el, s] of saved) { s === null ? el.removeAttribute("style") : el.setAttribute("style", s); el.style.cssText += ";" + still; }
+    void sc.scrollWidth;
+    for (const [el, s] of saved) s === null ? el.removeAttribute("style") : el.setAttribute("style", s);
+    return out;
+  })()`);
+  if (!f) skip(24, "the table fits its window", "no table found");
+  else {
+    const stage = f.stage ? `, data-fit=${f.stage}` : "";
+    if (f.over <= 1) pass(24, "the table fits its window", `${f.need} of ${f.box}px${stage}`);
+    else if (f.squeezed.over <= 1)
+      fail(24, "the table scrolls sideways although it fits once its text wraps and its header marks fold",
+           `${f.need}px in a ${f.box}px box, ${f.squeezed.need}px squeezed${stage}${f.held.length ? " — held by " + f.held.join(", ") : ""}`);
+    else pass(24, "it scrolls only because it cannot fit, every stage taken",
+              `${f.need}px in a ${f.box}px box; squeezed it still needs ${f.squeezed.need}px${stage}`);
+    if (!f.short) skip(24, "short values never wrap", "no column of dates, figures or ids in view");
+    else f.wrapped.length
+      ? fail(24, "a short value wrapped onto a second line", f.wrapped.slice(0, 3).join("; "))
+      : pass(24, "short values stay on one line", `${f.short} columns of dates, figures or ids`);
+  }
+}
+
+// ── 25. a click anywhere on a header cell sorts — but not its other controls ───────
+{
+  /* Anywhere on the cell, not only on the title (a folded header leaves its middle empty, and a
+     click there was a dead control). Three exceptions, each driven with the real mouse: the menu
+     circle opens its menu, any other control in the cell (the drag grip) does nothing to the
+     order, and a resize drag does not sort — including the one that ENDS inside the cell off the
+     edge, where the browser fires a click on the cell itself, the common ancestor of the press
+     and the release. The order is read from aria-sort on every header AND from the rows: a
+     product without aria-sort still has to be caught. */
+  const sortSig = () => page.evaluate(`(() => [...document.querySelectorAll(window.__S.head)]
+      .map(t => t.getAttribute("aria-sort") || "").join("|") + "#" + ${DATA_ROWS}.map(r => r.textContent.trim().slice(0, 40)).join("|"))()`);
+  /** the k-th data header brought on screen, with its geometry and the points worth clicking */
+  const look = k => page.evaluate((k, menuSel, gripSel) => {
+    const th = [...document.querySelectorAll(window.__S.head)].filter(t => !t.matches(window.__S.actions))[k];
+    if (!th) return null;
+    th.scrollIntoView({ inline: "center", block: "nearest" });
+    const r = th.getBoundingClientRect();
+    const inTh = (x, y) => th.contains(document.elementFromPoint(x, y));
+    const CONTROL = "button, a, input, select, textarea, [role=button], " + menuSel + ", " + gripSel;
+    // what a click must avoid: the title's text and every control
+    const blocks = [];
+    const w = document.createTreeWalker(th, NodeFilter.SHOW_TEXT);
+    for (let n; (n = w.nextNode());) if (n.textContent.trim()) {
+      const rg = document.createRange(); rg.selectNodeContents(n);
+      for (const q of rg.getClientRects()) if (q.width > 0) blocks.push(q); }
+    for (const c of th.querySelectorAll(CONTROL)) { const q = c.getBoundingClientRect(); if (q.width > 0) blocks.push(q); }
+    let best = null;
+    for (let fy = 0.15; fy <= 0.86; fy += 0.07) for (let fx = 0.04; fx <= 0.96; fx += 0.04) {
+      const x = r.left + r.width * fx, y = r.top + r.height * fy;
+      if (x > r.right - 10 || x < r.left + 3) continue;                    // the resize edges, ours and the neighbour's
+      const hit = document.elementFromPoint(x, y);
+      if (!hit || !th.contains(hit) || (hit !== th && hit.closest(CONTROL) && th.contains(hit.closest(CONTROL)))) continue;
+      const gap = Math.min(...blocks.map(q => Math.max(q.left - x, x - q.right, q.top - y, y - q.bottom)), 99);
+      if (gap < 3) continue;
+      if (!best || gap > best.gap) best = { x, y, gap };
+    }
+    const at = el => { if (!el) return null; const q = el.getBoundingClientRect();
+      const x = q.left + q.width / 2, y = q.top + q.height / 2;
+      return { x, y, w: q.width, h: q.height, on: el.contains(document.elementFromPoint(x, y)) }; };
+    const firstText = (() => { const w2 = document.createTreeWalker(th, NodeFilter.SHOW_TEXT);
+      for (let n; (n = w2.nextNode());) if (n.textContent.trim()) { const rg = document.createRange(); rg.selectNodeContents(n);
+        const q = rg.getClientRects()[0]; if (q && inTh(q.left + q.width / 2, q.top + q.height / 2)) return { x: q.left + q.width / 2, y: q.top + q.height / 2 }; }
+      return null; })();
+    const others = [...th.querySelectorAll("button, [role=button]")]
+      .filter(b => !b.textContent.trim() && !b.matches(menuSel) && !b.closest(menuSel) && !b.matches(gripSel) && b.getBoundingClientRect().width > 0)
+      .map(at).filter(p => p.on);
+    return { label: th.textContent.trim().slice(0, 20), w: r.width, right: r.right, cy: r.top + r.height / 2,
+             empty: best, title: firstText, handle: at(th.querySelector(menuSel)), grip: at(th.querySelector(gripSel)), others };
+  }, k, SEL.menuHandle, SEL.colGrip);
+  const clickAt = async p => { await page.mouse.click(p.x, p.y); await sleep(700); };
+  const nHead = await page.$$eval(DATA_HEAD, ts => ts.length);
+  /* the column under test: the first whose TITLE sorts (not every column is sortable) and whose
+     cell has an empty point beside its title and marks */
+  let col = null;
+  for (let k = 0; k < Math.min(nHead, 8) && !col; k++) {
+    const g = await look(k);
+    if (!g?.empty || !g.title) continue;
+    const s0 = await sortSig();
+    await clickAt(g.title);
+    if ((await sortSig()) !== s0) col = { k, ...(await look(k)) };
+  }
+  if (!col) skip(25, "a click anywhere on the header cell sorts", "no sortable header with an empty point beside its title and marks");
+  else if (!col.empty) skip(25, "a click anywhere on the header cell sorts", `${col.label}: the title fills the cell once sorted`);
+  else {
+    const s0 = await sortSig();
+    await clickAt(col.empty);
+    (await sortSig()) !== s0
+      ? pass(25, "a click on an empty point of the header cell sorts", `${col.label}, ${Math.round(col.empty.x - (col.right - col.w))}px into a ${Math.round(col.w)}px cell`)
+      : fail(25, "a click on the header cell beside its title sorts nothing — a dead part of the control", col.label);
+    // the circle: opens the menu, leaves the order alone
+    const g = await look(col.k);
+    if (!g.handle?.on) skip(25, "the menu circle does not sort", `${col.label} has no clickable menu circle`);
+    else {
+      const s1 = await sortSig();
+      await page.mouse.click(g.handle.x, g.handle.y); await sleep(400);
+      const opened = await menuOpen();
+      const same = (await sortSig()) === s1;
+      opened && same ? pass(25, "the menu circle opens its menu and leaves the sort alone")
+                     : fail(25, "the menu circle " + (same ? "opens nothing" : "also sorts the column"), col.label);
+      await closeMenu();
+    }
+    // every other control in the cell — the drag grip — leaves the order alone
+    const g2 = await look(col.k);
+    if (!g2.others.length) skip(25, "the cell's other controls do not sort", "no other control in the header cell");
+    else {
+      const s2 = await sortSig();
+      for (const o of g2.others) await clickAt(o);
+      (await sortSig()) === s2 ? pass(25, "the cell's other controls (drag grip) do not sort", `${g2.others.length} clicked`)
+                               : fail(25, "a click on the drag grip sorts the column", col.label);
+    }
+    /* The resize edge, dragged −30 and +40 px. Where the edge follows the pointer exactly the
+       release lands back on the edge, and the click that goes with it is the edge's own; the case
+       that matters is the release INSIDE the cell off the edge, so the drag carries on a few px at
+       a time until it gets there (a column at its floor stops following), and other columns are
+       tried until one does. */
+    const drags = [];
+    for (let k = col.k, tried = 0; tried < 5 && k < nHead && drags.filter(d => d.inside).length < 2; k++, tried++) {
+      for (const dx of [-30, 40]) {
+        const h = await look(k);
+        if (!h?.grip?.on) break;
+        const s = await sortSig(), w0 = h.w;
+        const step = Math.sign(dx) * 4;
+        let x = h.grip.x;
+        await page.mouse.move(x, h.grip.y); await page.mouse.down();
+        await page.mouse.move(x + dx, h.grip.y, { steps: 8 }); x += dx;
+        const where = () => page.evaluate((k, x, y, gripSel) => {
+          const th = [...document.querySelectorAll(window.__S.head)].filter(t => !t.matches(window.__S.actions))[k];
+          const hit = document.elementFromPoint(x, y);
+          return !th || !hit ? "out" : !th.contains(hit) ? "out" : hit.closest(gripSel) ? "edge" : "inside";
+        }, k, x, h.grip.y, SEL.colGrip);
+        let at = await where();
+        for (let more = 0; at === "edge" && more < 25; more++) {
+          await page.mouse.move(x + step, h.grip.y, { steps: 2 }); x += step; await sleep(30);
+          at = await where();
+        }
+        await page.mouse.up(); await sleep(700);
+        const w1 = (await look(k))?.w ?? w0;
+        drags.push({ label: h.label, dx, travel: Math.round(x - h.grip.x), inside: at === "inside", at, sorted: (await sortSig()) !== s, dw: Math.round(w1 - w0) });
+      }
+    }
+    const sorted = drags.filter(d => d.sorted);
+    const inside = drags.filter(d => d.inside);
+    const fmt = d => `${d.label} ${d.dx > 0 ? "+" : ""}${d.dx}px (dragged ${d.travel}, released ${d.at}, width ${d.dw > 0 ? "+" : ""}${d.dw})`;
+    if (!drags.length) skip(25, "a resize drag does not sort", "no resize edge found on screen in a header cell");
+    else {
+      sorted.length
+        ? fail(25, "a resize drag that ends inside the header cell sorts the column", sorted.slice(0, 2).map(fmt).join("; "))
+        : inside.length ? pass(25, "resize drags ending inside the cell leave the sort alone", inside.slice(0, 2).map(fmt).join("; "))
+                        : skip(25, "a resize drag ending inside the cell", "every release landed on the edge or off the cell — " + drags.slice(0, 2).map(fmt).join("; "));
+      const moved = drags.filter(d => Math.abs(d.dw) >= 2);
+      moved.length ? pass(25, "the resize drags change the width", moved.slice(0, 2).map(fmt).join("; "))
+                   : fail(25, "the resize drags change no width", drags.slice(0, 2).map(fmt).join("; "));
+    }
+  }
+}
+
 // ── 6. reorder by drag ─────────────────────────────────────────────────────────────
 {
   const draggable = await page.$eval(DATA_HEAD, th => th.draggable).catch(() => false);
