@@ -705,6 +705,14 @@ const judgeMagnifier = (m, where) => {
     const edge = () => { const r = sc.getBoundingClientRect(); return r.left + sc.clientLeft + sc.clientWidth; };
     const at = x => {
       sc.scrollTop = 0; sc.scrollLeft = x;
+      // hit-test an on-screen point: bring the row into view VERTICALLY through the scroller's ancestors only —
+      // never move the scroller sideways, or an actions column that is not pinned would be scrolled into view and pass
+      for (let p = sc.parentElement, t; p; p = p.parentElement) {
+        t = td.getBoundingClientRect();
+        if (t.top >= 0 && t.bottom <= innerHeight) break;
+        if (p.scrollHeight > p.clientHeight) p.scrollTop += t.top - (innerHeight - t.height) / 2;
+      }
+      { const t = td.getBoundingClientRect(); if (t.top < 0 || t.bottom > innerHeight) window.scrollBy(0, t.top - (innerHeight - t.height) / 2); }
       const a = td.getBoundingClientRect();
       const hit = document.elementFromPoint(a.left + a.width / 2, a.top + a.height / 2);
       return { off: Math.round((a.right - edge()) * 10) / 10, hit: hit?.closest("td, th") === td,
